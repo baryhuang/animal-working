@@ -78,4 +78,33 @@ canvas {
 }
 .prompt.hidden { display: none; }
 
+/* Choice dialog for quizzes */
+.chooser {
+  position: fixed;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  max-width: min(800px, 80vw);
+  background: rgba(18,20,27,0.9);
+  border: 1px solid var(--hud-border);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  padding: 14px 16px;
+  border-radius: 12px;
+  color: var(--text);
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  z-index: 11;
+}
+.chooser.hidden { display: none; }
+.chooser .q { font-weight: 600; margin-bottom: 10px; }
+.chooser .opts { display: flex; gap: 8px; flex-wrap: wrap; }
+.chooser .opt {
+  background: rgba(44,230,255,0.08);
+  color: #a8f0ff;
+  border: 1px solid rgba(44,230,255,0.25);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.chooser .opt:hover { background: rgba(44,230,255,0.16); }
+
 

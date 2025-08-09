@@ -2,6 +2,7 @@ export type DialogHandle = {
   show: (lines: string[]) => void;
   hide: () => void;
   setPrompt: (text: string | null) => void;
+  ask?: (question: string, choices: string[]) => Promise<number>;
 };
 
 export function createUI(): DialogHandle {
@@ -12,6 +13,13 @@ export function createUI(): DialogHandle {
     dialog.id = 'dialog';
     dialog.className = 'dialog hidden';
     hud.after(dialog);
+  }
+  let chooser = document.getElementById('chooser');
+  if (!chooser) {
+    chooser = document.createElement('div');
+    chooser.id = 'chooser';
+    chooser.className = 'chooser hidden';
+    hud.after(chooser);
   }
   let prompt = document.getElementById('prompt');
   if (!prompt) {
@@ -38,7 +46,29 @@ export function createUI(): DialogHandle {
     prompt!.classList.remove('hidden');
   };
 
-  return { show, hide, setPrompt };
+  const ask = (question: string, choices: string[]): Promise<number> => {
+    return new Promise(resolve => {
+      chooser!.innerHTML = [
+        `<div class="q">${question}</div>`,
+        `<div class="opts">${choices
+          .map((c, i) => `<button data-idx="${i}" class="opt">${c}</button>`) 
+          .join('')}</div>`
+      ].join('');
+      chooser!.classList.remove('hidden');
+      const onClick = (e: Event) => {
+        const target = e.target as HTMLElement;
+        const idxAttr = target.getAttribute('data-idx');
+        if (idxAttr == null) return;
+        const idx = Number(idxAttr);
+        chooser!.classList.add('hidden');
+        chooser!.removeEventListener('click', onClick);
+        resolve(idx);
+      };
+      chooser!.addEventListener('click', onClick);
+    });
+  };
+
+  return { show, hide, setPrompt, ask };
 }
 
 
