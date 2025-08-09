@@ -1,0 +1,50 @@
+{
+  "name": "zelda-lite-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fancy Zelda-like pseudo-3D RPG demo (Vite + Phaser + Electron)",
+  "author": "Bary & Paul",
+  "main": "electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev:web": "vite",
+    "dev:electron": "wait-on http-get://localhost:5173 && cross-env VITE_DEV_SERVER_URL=http://localhost:5173 electron .",
+    "dev": "concurrently -k -r -n web,elec -c blue,magenta \"npm:dev:web\" \"npm:dev:electron\"",
+    "build:web": "vite build",
+    "build:electron": "electron-builder --mac",
+    "build": "npm run build:web && npm run build:electron",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "phaser": "^3.80.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^29.4.0",
+    "wait-on": "^7.2.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.3"
+  },
+  "build": {
+    "appId": "com.bary.zelda_lite_demo",
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "mac": {
+      "category": "public.app-category.games",
+      "target": ["dmg", "zip"]
+    }
+  }
+}
+
