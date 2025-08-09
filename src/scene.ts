@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { createUI, DialogHandle } from './ui';
+import { sfx } from './audio';
 
 type Controls = {
   cursors: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -49,6 +51,16 @@ function createRockTexture(scene: Phaser.Scene): string {
   return key;
 }
 
+function createShadowTexture(scene: Phaser.Scene): string {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 1);
+  g.fillEllipse(30, 14, 60, 28);
+  const key = 'shadow';
+  g.generateTexture(key, 60, 28);
+  g.destroy();
+  return key;
+}
+
 function createSparkTexture(scene: Phaser.Scene): string {
   const g = scene.add.graphics();
   g.fillStyle(0xffffff, 1);
@@ -89,6 +101,29 @@ function addFancyBackground(scene: Phaser.Scene): void {
   vignette.destroy();
 }
 
+function createGroundTexture(scene: Phaser.Scene): string {
+  const g = scene.add.graphics();
+  const c1 = 0x2a2f35; // warm-dark
+  const c2 = 0x22282e; // warm-darker
+  // 64x64 pattern of 4 squares (32x32 each) for a checkered tile floor
+  g.fillStyle(c1, 1);
+  g.fillRect(0, 0, 32, 32);
+  g.fillRect(32, 32, 32, 32);
+  g.fillStyle(c2, 1);
+  g.fillRect(32, 0, 32, 32);
+  g.fillRect(0, 32, 32, 32);
+
+  // subtle cross highlight
+  g.lineStyle(1, 0x40464d, 0.15);
+  g.strokeLineShape(new Phaser.Geom.Line(0, 32, 64, 32));
+  g.strokeLineShape(new Phaser.Geom.Line(32, 0, 32, 64));
+
+  const key = 'ground64';
+  g.generateTexture(key, 64, 64);
+  g.destroy();
+  return key;
+}
+
 function spawnScenery(scene: Phaser.Scene, treeKey: string, rockKey: string): Phaser.Physics.Arcade.StaticGroup {
   const group = scene.physics.add.staticGroup();
   const rand = (min: number, max: number) => Math.random() * (max - min) + min;
@@ -97,7 +132,10 @@ function spawnScenery(scene: Phaser.Scene, treeKey: string, rockKey: string): Ph
     const x = rand(200, WORLD_WIDTH - 200);
     const y = rand(200, WORLD_HEIGHT - 200);
     const spr = group.create(x, y, useTree ? treeKey : rockKey) as Phaser.Physics.Arcade.Sprite;
-    spr.setScale(Phaser.Math.FloatBetween(0.7, 1.2));
+    const yRatio = y / WORLD_HEIGHT;
+    const perspectiveScale = 0.5 + 1.6 * yRatio; // far small, near big
+    const baseRand = Phaser.Math.FloatBetween(0.75, 1.25);
+    spr.setScale(baseRand * perspectiveScale);
     spr.setDepth(y);
     spr.refreshBody();
   }
@@ -118,26 +156,47 @@ function clamp(val: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, val));
 }
 
-export function createGameScene(): Phaser.Scene {
+type SceneConfig = {
+  name?: string;
+  banner?: string;
+  exits?: { x: number; y: number; label: string; target: string }[];
+  npcs?: { x: number; y: number; text: string[] }[];
+  spawn?: { x: number; y: number };
+};
+
+export function createGameScene(config: SceneConfig = {}): Phaser.Scene {
   let player!: Phaser.Physics.Arcade.Sprite;
   let controls!: Controls;
   let emitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   let scenery!: Phaser.Physics.Arcade.StaticGroup;
+  let shadow!: Phaser.GameObjects.Image;
+  let ui!: DialogHandle;
+  let enterKey!: Phaser.Input.Keyboard.Key;
+  let labels: Phaser.GameObjects.Text[] = [];
 
-  const scene = new Phaser.Scene('Game');
+  const scene = new Phaser.Scene(config.name ?? 'Game');
 
   scene.preload = () => {
     createHeroTexture(scene);
     createTreeTexture(scene);
     createRockTexture(scene);
     createSparkTexture(scene);
+    createShadowTexture(scene);
+    createGroundTexture(scene);
   };
 
   scene.create = () => {
+    ui = createUI();
+    enterKey = scene.input.keyboard!.addKey('E');
     scene.cameras.main.setZoom(1.15);
     scene.cameras.main.setBackgroundColor('#0e1014');
     scene.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     addFancyBackground(scene);
+
+    // Warm retro checker floor
+    const ground = scene.add.tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, 'ground64')
+      .setOrigin(0, 0)
+      .setDepth(-1000);
 
     // Ground fake perspective grid lines
     const grid = scene.add.graphics();
@@ -148,7 +207,7 @@ export function createGameScene(): Phaser.Scene {
     for (let y = 0; y < WORLD_HEIGHT; y += 80) {
       grid.lineBetween(0, y, WORLD_WIDTH, y);
     }
-    grid.setAlpha(0.25);
+    grid.setAlpha(0.12);
 
     // Physics world
     scene.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -156,11 +215,58 @@ export function createGameScene(): Phaser.Scene {
     // Scenery
     scenery = spawnScenery(scene, 'tree', 'rock');
 
-    // Player
-    player = scene.physics.add.sprite(WORLD_WIDTH / 2, WORLD_HEIGHT / 2, 'hero');
+    // Player (create BEFORE sensors so overlaps bind correctly)
+    const spawnX = config.spawn?.x ?? WORLD_WIDTH / 2;
+    const spawnY = config.spawn?.y ?? WORLD_HEIGHT / 2;
+    player = scene.physics.add.sprite(spawnX, spawnY, 'hero');
     player.setCircle(12, 4, 6);
     player.setCollideWorldBounds(true);
     player.setDepth(player.y);
+
+    // Soft blob shadow under hero for height/depth illusion
+    shadow = scene.add.image(player.x, player.y + 14, 'shadow')
+      .setAlpha(0.22)
+      .setDepth(player.y - 1)
+      .setScale(0.6);
+
+    // Exit labels and sensor zones
+    labels.forEach(l => l.destroy());
+    labels = [];
+    (config.exits ?? []).forEach(exit => {
+      const text = scene.add.text(exit.x, exit.y - 28, exit.label, {
+        fontSize: '14px',
+        fontFamily: 'Inter, sans-serif',
+        color: '#ffd48a',
+        stroke: '#6b3c00',
+        strokeThickness: 3
+      }).setDepth(exit.y + 100);
+      labels.push(text);
+
+      const sensor = scene.add.zone(exit.x, exit.y, 90, 90);
+      scene.physics.add.existing(sensor, true);
+      scene.physics.add.overlap(player, sensor, () => {
+        ui.setPrompt(`按 E 进入 · ${exit.label}`);
+        if (enterKey.isDown) {
+          sfx('ok');
+          scene.scene.start(exit.target);
+        }
+      });
+    });
+
+    // NPCs
+    (config.npcs ?? []).forEach(n => {
+      const npc = scene.add.sprite(n.x, n.y, 'tree').setDepth(n.y).setScale(0.8);
+      const zone = scene.add.zone(n.x, n.y, 80, 80);
+      scene.physics.add.existing(zone, true);
+      scene.physics.add.overlap(player, zone, () => {
+        ui.setPrompt('按 E 对话');
+        if (enterKey.isDown) {
+          sfx('blip');
+          ui.show(n.text);
+          scene.time.delayedCall(1600, () => ui.hide());
+        }
+      });
+    });
 
     // Particles (Phaser 3.60+ API: add.particles returns an Emitter)
     emitter = scene.add.particles(player.x, player.y, 'spark', {
@@ -177,6 +283,15 @@ export function createGameScene(): Phaser.Scene {
 
     // Controls
     controls = setupControls(scene);
+
+    // Banner
+    if (config.banner) {
+      const t = scene.add.text(WORLD_WIDTH / 2, 120, config.banner, {
+        fontSize: '22px', color: '#ffd48a', fontFamily: 'Orbitron, sans-serif'
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(9999);
+      scene.tweens.add({ targets: t, alpha: { from: 0, to: 1 }, duration: 400 });
+      scene.time.delayedCall(1800, () => scene.tweens.add({ targets: t, alpha: 0, duration: 600 }));
+    }
 
     // Camera follow with slight offset for cinematic look
     scene.cameras.main.startFollow(player, true, 0.1, 0.1);
@@ -229,14 +344,23 @@ export function createGameScene(): Phaser.Scene {
 
     // Pseudo 3D: scale with Y (closer = larger), depth-sort by Y
     const yRatio = player.y / WORLD_HEIGHT;
-    const scale = 0.6 + 0.9 * yRatio;
+    const scale = 0.5 + 1.5 * yRatio; // stronger near/far scaling for a 2.5D feel
     player.setScale(scale);
     player.setDepth(player.y);
+
+    // Shadow follows player and scales softer
+    if (shadow) {
+      shadow.setPosition(player.x, player.y + 14);
+      shadow.setDepth(player.y - 1);
+      shadow.setScale(0.45 + 1.1 * yRatio);
+      shadow.setAlpha(0.18 + 0.12 * yRatio);
+    }
 
     // Camera slight tilt by velocity
     const cam = scene.cameras.main;
     cam.setLerp(0.12, 0.12);
-    cam.setZoom(1.1 + 0.04 * (isDashing ? 1 : 0));
+    // Slight dynamic zoom by Y to accentuate perspective
+    cam.setZoom(1.05 + 0.15 * yRatio + 0.03 * (isDashing ? 1 : 0));
     cam.rotation = Phaser.Math.Angle.RotateTo(cam.rotation, Phaser.Math.Angle.Wrap(Math.atan2(nextVx, -nextVy) * 0.03), 0.0008 * delta);
   };
 

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createGameScene } from './scene';
+import { createHubScene, createLeadershipScene, createCultureScene, createProductScene, createNetworkScene, createGateScene } from './scenes';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -16,7 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
     default: 'arcade',
     arcade: { gravity: { y: 0 }, debug: false }
   },
-  scene: [createGameScene()]
+  scene: [createGateScene(), createHubScene(), createLeadershipScene(), createCultureScene(), createProductScene(), createNetworkScene()]
 };
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
