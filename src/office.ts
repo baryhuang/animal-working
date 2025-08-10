@@ -37,7 +37,6 @@ export function createOfficeScene(): Phaser.Scene {
   let cto!: SimpleNpc;
   let pm!: SimpleNpc;
   let designer!: SimpleNpc;
-  let idleBlinkTimer: Phaser.Time.TimerEvent | null = null;
   let speakTimer: Phaser.Time.TimerEvent | null = null;
   let pmSpeakTimer: Phaser.Time.TimerEvent | null = null;
   let designerSpeakTimer: Phaser.Time.TimerEvent | null = null;
@@ -57,7 +56,6 @@ export function createOfficeScene(): Phaser.Scene {
     scene.load.image('designer_raw', designerUrl);
     scene.load.image('task_list', new URL('./assets/task_list.png', import.meta.url).toString());
   };
-
   function setupCtoSprite(): void {
     const raw = scene.textures.get('cto_raw').getSourceImage() as HTMLImageElement;
     const frameWidth = Math.floor(raw.width / 2);
@@ -86,17 +84,6 @@ export function createOfficeScene(): Phaser.Scene {
       perspective: { worldHeight: bgHeight, min: 0.16, max: 0.46 },
       bob: { amplitude: 1, durationMs: 1800 }
     });
-
-    // Idle blink / adjust-glasses occasionally
-    const scheduleBlink = () => {
-      const delay = Phaser.Math.Between(3000, 5000);
-      idleBlinkTimer = scene.time.delayedCall(delay, () => {
-        cto.sprite.setFrame(2);
-        scene.time.delayedCall(220, () => cto.sprite.setFrame(3));
-        scheduleBlink();
-      });
-    };
-    scheduleBlink();
   }
 
   function setupPMSprite(): void {
@@ -260,6 +247,11 @@ export function createOfficeScene(): Phaser.Scene {
     const scale = 0.48 + 0.16 * t; // 更平坦：0.48 (远) → 0.64 (近)
     player.setScale(scale);
     player.setDepth(player.y);
+
+    // Idle微抖动/呼吸：玩家在静止时轻微上下浮动（更小幅度）
+    if (!moving) {
+      player.y += Math.sin(scene.time.now * 0.006) * 0.18;
+    }
 
     // Proximity + dialog
     let prompt: string | null = null;

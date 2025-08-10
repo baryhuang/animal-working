@@ -35,10 +35,19 @@ export function createSimpleNpc(scene: Phaser.Scene, cfg: SimpleNpcConfig): Simp
     sprite.setScale(s);
   }
 
-  // Subtle idle bobbing
-  const amp = cfg.bob?.amplitude ?? 1;
-  const dur = cfg.bob?.durationMs ?? 1800;
-  scene.tweens.add({ targets: sprite, y: cfg.y + amp, duration: dur, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+  // Subtle idle motion: small sinusoidal bob + breathing drift (no conflicting tweens)
+  const baseY = cfg.y;
+  const bobAmp = cfg.bob?.amplitude ?? 0.25;
+  const breathAmp = 0.20; // match (and slightly lower than) player
+  const bobSpeed = (cfg.bob?.durationMs ?? 1800) > 0 ? (Math.PI * 2) / (cfg.bob?.durationMs ?? 1800) : 0.003;
+  const phase = Math.random() * Math.PI * 2;
+  const onUpdate = () => {
+    const time = scene.time.now;
+    const y = baseY + Math.sin(time * bobSpeed + phase) * bobAmp + Math.sin(time * 0.006 + phase * 0.7) * breathAmp;
+    sprite.setY(y);
+    if (cfg.depthByY ?? true) sprite.setDepth(y);
+  };
+  scene.events.on('update', onUpdate);
 
   // Random blink/adjust
   let blinkTimer: Phaser.Time.TimerEvent | null = null;
@@ -80,6 +89,7 @@ export function createSimpleNpc(scene: Phaser.Scene, cfg: SimpleNpcConfig): Simp
   const destroy = () => {
     speakTimer?.remove(false);
     blinkTimer?.remove(false);
+    scene.events.off('update', onUpdate);
     sprite.destroy();
   };
 
