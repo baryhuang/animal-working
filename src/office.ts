@@ -248,7 +248,7 @@ export function createOfficeScene(): Phaser.Scene {
 
     // 伪透视缩放：越靠下越大
     const t = Phaser.Math.Clamp((player.y - minY) / (maxY - minY), 0, 1);
-    const scale = 0.46 + 0.28 * t; // 0.46 (远) → 0.74 (近)
+    const scale = 0.48 + 0.16 * t; // 更平坦：0.48 (远) → 0.64 (近)
     player.setScale(scale);
     player.setDepth(player.y);
 
