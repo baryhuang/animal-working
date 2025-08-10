@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createUI, DialogHandle } from './ui';
 import { createSimpleNpc, SimpleNpc } from './actors';
+import { createTaskList, TaskListHandle } from './panel';
 
 // Simple side-view player for the demo
 function createHeroTexture(scene: Phaser.Scene): string {
@@ -30,6 +31,7 @@ export function createOfficeScene(): Phaser.Scene {
   let bgHeight = 900;
   let minX = 60, maxX = 1540;
   let minY = 0, maxY = 0;
+  let taskPanel!: TaskListHandle;
 
   // CTO sprite and timers
   let cto!: SimpleNpc;
@@ -53,6 +55,7 @@ export function createOfficeScene(): Phaser.Scene {
     scene.load.image('player_raw', playerUrl);
     scene.load.image('pm_raw', pmUrl);
     scene.load.image('designer_raw', designerUrl);
+    scene.load.image('task_list', new URL('./assets/task_list.png', import.meta.url).toString());
   };
 
   function setupCtoSprite(): void {
@@ -209,6 +212,10 @@ export function createOfficeScene(): Phaser.Scene {
 
     // Hint
     ui.setPrompt('靠近 CTO（右上区域） · 按 E 交互');
+
+    // Task list panel
+    taskPanel = createTaskList(scene, { x: 16, y: 16, scale: 0.36 });
+    taskPanel.setTasks(['与 CTO 打招呼', '与 PM 沟通需求', '与 设计师 对齐 UI']);
   };
 
   ;(scene as any).update = (_time: number, delta: number) => {
@@ -267,6 +274,7 @@ export function createOfficeScene(): Phaser.Scene {
         scene.time.delayedCall(1400, () => {
           ui.hide();
           stopSpeaking();
+          taskPanel.setDone(0, true);
         });
       }
     } else if (nearPm) {
@@ -278,6 +286,7 @@ export function createOfficeScene(): Phaser.Scene {
           ui.hide();
           pm.stopSpeaking();
           pmSpeakTimer = null;
+          taskPanel.setDone(1, true);
         });
       }
     } else if (nearDesigner) {
@@ -289,6 +298,7 @@ export function createOfficeScene(): Phaser.Scene {
           ui.hide();
           designer.stopSpeaking();
           designerSpeakTimer = null;
+          taskPanel.setDone(2, true);
         });
       }
     }
