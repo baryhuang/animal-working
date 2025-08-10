@@ -98,7 +98,7 @@ export function createOfficeScene(): Phaser.Scene {
   let focusedNpc: SimpleNpc | null = null;
   const ensureFocusOverlay = () => {
     if (!focusOverlay) {
-      focusOverlay = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x000000, 0.62)
+      focusOverlay = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x000000, 0.38)
         .setOrigin(0, 0)
         .setScrollFactor(0)
         .setDepth(9998)
