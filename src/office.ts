@@ -320,9 +320,13 @@ export function createOfficeScene(): Phaser.Scene {
 
     // Proximity + dialog
     let prompt: string | null = null;
-    const nearCto = Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 120;
-    const nearPm = pm ? Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 120 : false;
-    const nearDesigner = designer ? Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 120 : false;
+    const distTo = (a: Phaser.GameObjects.Sprite) => Math.hypot(player.x - a.x, player.y - a.y);
+    const dCto = distTo(cto.sprite);
+    const dPm = pm ? distTo(pm.sprite) : Number.POSITIVE_INFINITY;
+    const dDesigner = designer ? distTo(designer.sprite) : Number.POSITIVE_INFINITY;
+    const nearCto = dCto < 120;
+    const nearPm = dPm < 120;
+    const nearDesigner = dDesigner < 120;
     // openAiKey can be provided via env/localStorage; don't overwrite here
     openAiKey = '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';
     if (nearCto) {
@@ -428,18 +432,18 @@ export function createOfficeScene(): Phaser.Scene {
         designerChoiceOpen = false;
         designerCooldownAt = scene.time.now;
       }
-      // If moved away from CTO, stop voice session
-      if (voice?.isActive?.() && !(Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 140)) {
+      // If moved away from CTO, stop voice session (with hysteresis radius)
+      if (voice?.isActive?.() && !(dCto < 140)) {
         voice.stop();
         voice = null;
         setVoiceChip(false);
       }
-      if (designerVoice?.isActive?.() && !(Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 140)) {
+      if (designerVoice?.isActive?.() && !(dDesigner < 140)) {
         designerVoice.stop();
         designerVoice = null;
         setVoiceChip(false);
       }
-      if (pmVoice?.isActive?.() && !(Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 140)) {
+      if (pmVoice?.isActive?.() && !(dPm < 140)) {
         pmVoice.stop();
         pmVoice = null;
         setVoiceChip(false);
