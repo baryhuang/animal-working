@@ -349,7 +349,7 @@ export function createOfficeScene(): Phaser.Scene {
             openAiKey,
             buildCtoInstructions(),
             'gpt-4o-realtime-preview',
-            'ballad',
+            'ash',
             tools
           )
             .then(v => {
