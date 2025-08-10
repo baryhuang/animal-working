@@ -120,7 +120,7 @@ export function createOfficeScene(): Phaser.Scene {
   };
   const showFocus = (npc: SimpleNpc) => {
     ensureFocusOverlay();
-    if (!focusOverlay || !focusMaskRT || !focusDrawer) return;
+    if (!focusOverlay || !focusMaskRT) return;
     focusOverlay.setVisible(true);
     focusedNpc = npc;
     updateFocusMask(npc);
@@ -130,7 +130,7 @@ export function createOfficeScene(): Phaser.Scene {
     const cam = scene.cameras.main;
     const toScreenX = (x: number) => x - cam.scrollX;
     const toScreenY = (y: number) => y - cam.scrollY;
-    // Clear previous mask
+    // Clear previous mask by filling with transparent black
     focusMaskRT.clear();
     focusDrawer.clear();
     // Draw feathered circles into the drawer, then blit into RT
@@ -147,10 +147,11 @@ export function createOfficeScene(): Phaser.Scene {
     focusMaskRT.draw(focusDrawer, 0, 0);
   };
   const hideFocus = () => {
-    if (!focusOverlay || !focusMaskRT || !focusDrawer) return;
+    if (!focusOverlay) return;
+    // Simply hide; avoid clearing RenderTexture to prevent WebGL target null errors during scene swaps
     focusOverlay.setVisible(false);
-    focusMaskRT.clear();
-    focusDrawer.clear();
+    focusMaskRT?.setVisible(false);
+    focusDrawer?.clear();
     focusedNpc = null;
   };
 

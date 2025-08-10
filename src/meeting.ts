@@ -54,7 +54,7 @@ export function createDesignerMeetingScene(): Phaser.Scene {
       ];
       startOpenAiVoiceSession(
         openAiKey,
-        'You are Jasmine as Designer. On your first message, begin with: "I am Jasmine, your Designer." We are in the meeting room—help the user clarify design and call go_back_to_office when they say they are clear.',
+        'You are Jasmine as Designer. On your first message, continue the conversation with: "Hi Andy, what do you need help with?" We are in the meeting room—help the user clarify design and call go_back_to_office when they say they are clear.',
         'gpt-4o-realtime-preview',
         'coral',
         tools
@@ -67,12 +67,14 @@ export function createDesignerMeetingScene(): Phaser.Scene {
   ;(scene as any).update = () => {
     if (backKey?.isDown) {
       ui.hide();
+      try { voice?.stop(); } catch {}
+      voice = null;
       fadeToScene(scene, 'Office', { duration: 420 });
     }
   };
 
-  ;(scene as any).shutdown = () => { voice?.stop(); voice = null; };
-  ;(scene as any).destroy = () => { voice?.stop(); voice = null; };
+  ;(scene as any).shutdown = () => { try { voice?.stop(); } catch {} voice = null; };
+  ;(scene as any).destroy = () => { try { voice?.stop(); } catch {} voice = null; };
 
   return scene;
 }
