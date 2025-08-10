@@ -151,6 +151,8 @@ export function createOfficeScene(): Phaser.Scene {
       (scene.textures as any).addSpriteSheet('player', raw, { frameWidth, frameHeight, endFrame: 3 });
     }
     player = scene.add.sprite(spawnX, groundY, 'player', 0).setOrigin(0.5, 1).setDepth(1000);
+    // Smooth scaling for crisper resampling
+    player.setPipeline('TextureTintPipeline');
     player.setScale(0.8);
   }
 

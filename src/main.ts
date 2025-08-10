@@ -6,7 +6,7 @@ const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0e1014',
-  pixelArt: true,
+  pixelArt: false,
   scale: {
     mode: Phaser.Scale.RESIZE,
     autoCenter: Phaser.Scale.CENTER_BOTH,
@@ -16,6 +16,11 @@ const config: Phaser.Types.Core.GameConfig = {
   physics: {
     default: 'arcade',
     arcade: { gravity: { x: 0, y: 0 }, debug: false }
+  },
+  render: {
+    antialias: true,
+    pixelArt: false,
+    roundPixels: false
   },
   scene: [
     createOfficeScene(),

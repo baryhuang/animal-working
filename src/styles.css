@@ -44,6 +44,8 @@ html, body, #game {
 
 canvas {
   display: block;
+  image-rendering: auto;
+  -ms-interpolation-mode: bicubic; /* legacy IE */
 }
 
 .dialog {
