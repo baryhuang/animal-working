@@ -4,6 +4,7 @@
 export type VoiceSession = {
   stop: () => void;
   isActive: () => boolean;
+  say: (text: string) => void;
 };
 
 export async function startOpenAiVoiceSession(apiKey: string, instructions = 'You are a friendly CTO. Talk concisely.', model = 'gpt-4o-realtime-preview', voice = 'onyx'): Promise<VoiceSession> {
@@ -36,6 +37,8 @@ export async function startOpenAiVoiceSession(apiKey: string, instructions = 'Yo
 
   // Data channel for events
   const dc = pc.createDataChannel('oai-events');
+  let dcReady = false;
+  const sayQueue: string[] = [];
 
   // Create SDP offer
   const offer = await pc.createOffer({ offerToReceiveAudio: true });
@@ -55,16 +58,22 @@ export async function startOpenAiVoiceSession(apiKey: string, instructions = 'Yo
   await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
 
   dc.onopen = () => {
+    dcReady = true;
     // Kick off an initial response loop so the assistant speaks when hearing the user
     try {
       dc.send(JSON.stringify({
         type: 'session.update',
-        session: { instructions }
+        session: { instructions, turn_detection: { type: 'server_vad' } }
       }));
       dc.send(JSON.stringify({
         type: 'response.create',
         response: { modalities: ['audio'], instructions: '你好，我是 CTO，很高兴见到你。现在我们已经连上麦克风了，你可以直接说话。' }
       }));
+      // Flush queued says
+      while (sayQueue.length) {
+        const txt = sayQueue.shift()!;
+        dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'], instructions: txt } }));
+      }
     } catch {}
   };
 
@@ -81,7 +90,13 @@ export async function startOpenAiVoiceSession(apiKey: string, instructions = 'Yo
     audioEl.remove();
   };
 
-  return { stop, isActive: () => !closed };
+  const say = (text: string) => {
+    if (closed) return;
+    const payload = { type: 'response.create', response: { modalities: ['audio'], instructions: text } };
+    try { dcReady ? dc.send(JSON.stringify(payload)) : sayQueue.push(text); } catch {}
+  };
+
+  return { stop, isActive: () => !closed, say };
 }
 
 
