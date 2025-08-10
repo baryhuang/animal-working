@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { createUI, DialogHandle } from './ui';
+import { createSimpleNpc, SimpleNpc } from './actors';
 
 // Simple side-view player for the demo
 function createHeroTexture(scene: Phaser.Scene): string {
@@ -21,27 +22,29 @@ export function createOfficeScene(): Phaser.Scene {
   const scene = new Phaser.Scene('Office');
 
   let ui!: DialogHandle;
-  let player!: Phaser.GameObjects.Image;
+  let player!: Phaser.GameObjects.Sprite;
   let interactKey!: Phaser.Input.Keyboard.Key;
   let cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-  let wasd!: Record<'A' | 'D', Phaser.Input.Keyboard.Key>;
 
   let bgWidth = 1600;
   let bgHeight = 900;
+  let minX = 60, maxX = 1540;
+  let minY = 0, maxY = 0;
 
   // CTO sprite and timers
-  let cto!: Phaser.GameObjects.Sprite;
+  let cto!: SimpleNpc;
   let idleBlinkTimer: Phaser.Time.TimerEvent | null = null;
   let speakTimer: Phaser.Time.TimerEvent | null = null;
 
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
+  const playerUrl = new URL('./assets/player.png', import.meta.url).toString();
 
   // Using 'as any' to attach lifecycle functions to the Scene instance to satisfy TS typings
   ;(scene as any).preload = () => {
-    createHeroTexture(scene);
     scene.load.image('office_bg', officeUrl);
     scene.load.image('cto_raw', ctoUrl);
+    scene.load.image('player_raw', playerUrl);
   };
 
   function setupCtoSprite(): void {
@@ -62,54 +65,55 @@ export function createOfficeScene(): Phaser.Scene {
     const ctoX = Math.floor(bgWidth * 0.69);
     // 稍微上移
     const ctoY = Math.floor(bgHeight * 0.68);
-    cto = scene.add.sprite(ctoX, ctoY, 'cto', 3).setOrigin(0.5, 1).setDepth(ctoY);
-
-    const perspectiveScale = (y: number) => 0.16 + 0.30 * (y / bgHeight);
-    cto.setScale(perspectiveScale(ctoY) * 1.20);
-
-    // Subtle bobbing
-    scene.tweens.add({
-      targets: cto,
-      y: ctoY + 1,
-      duration: 1800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
+    cto = createSimpleNpc(scene, {
+      x: ctoX,
+      y: ctoY,
+      sheetKey: 'cto',
+      idleFrame: 3,
+      speakFrame: 1,
+      blinkFrame: 2,
+      perspective: { worldHeight: bgHeight, min: 0.16, max: 0.46 },
+      bob: { amplitude: 1, durationMs: 1800 }
     });
 
     // Idle blink / adjust-glasses occasionally
     const scheduleBlink = () => {
       const delay = Phaser.Math.Between(3000, 5000);
       idleBlinkTimer = scene.time.delayedCall(delay, () => {
-        cto.setFrame(2);
-        scene.time.delayedCall(220, () => cto.setFrame(3));
+        cto.sprite.setFrame(2);
+        scene.time.delayedCall(220, () => cto.sprite.setFrame(3));
         scheduleBlink();
       });
     };
     scheduleBlink();
   }
 
+  function setupPlayerSprite(spawnX: number, groundY: number): void {
+    const raw = scene.textures.get('player_raw').getSourceImage() as HTMLImageElement;
+    const frameWidth = Math.floor(raw.width / 2);
+    const frameHeight = Math.floor(raw.height / 2);
+    if (!scene.textures.exists('player')) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (scene.textures as any).addSpriteSheet('player', raw, { frameWidth, frameHeight, endFrame: 3 });
+    }
+    player = scene.add.sprite(spawnX, groundY, 'player', 0).setOrigin(0.5, 1).setDepth(1000);
+    player.setScale(0.8);
+  }
+
   function startSpeaking(): void {
     if (speakTimer) return; // already speaking
-    // Switch between speaking(1) and idle(3) quickly
-    cto.setFrame(1);
-    let speakOn = true;
+    let flag = true;
+    cto.startSpeaking();
     speakTimer = scene.time.addEvent({
       delay: Phaser.Math.Between(300, 500),
       loop: true,
-      callback: () => {
-        speakOn = !speakOn;
-        cto.setFrame(speakOn ? 1 : 3);
-      }
+      callback: () => { flag = !flag; }
     });
   }
 
   function stopSpeaking(): void {
-    if (speakTimer) {
-      speakTimer.remove(false);
-      speakTimer = null;
-    }
-    cto.setFrame(3);
+    if (speakTimer) { speakTimer.remove(false); speakTimer = null; }
+    cto.stopSpeaking();
   }
 
   ;(scene as any).create = () => {
@@ -128,12 +132,15 @@ export function createOfficeScene(): Phaser.Scene {
     // Player spawn调整到更靠下并靠右，便于直接走向 CTO
     const groundY = Math.floor(bgHeight * 0.86);
     const spawnX = Math.floor(bgWidth * 0.58);
-    player = scene.add.image(spawnX, groundY, 'hero_office').setOrigin(0.5, 1).setDepth(1000);
+    setupPlayerSprite(spawnX, groundY);
+    // Movement bounds & perspective band
+    minX = 60; maxX = bgWidth - 60;
+    minY = Math.floor(bgHeight * 0.58);
+    maxY = Math.floor(bgHeight * 0.90);
 
     // Controls
     cursors = scene.input.keyboard!.createCursorKeys();
-    const keys = scene.input.keyboard!.addKeys('A,D,E') as Record<string, Phaser.Input.Keyboard.Key>;
-    wasd = { A: keys.A, D: keys.D } as any;
+    const keys = scene.input.keyboard!.addKeys('E') as Record<string, Phaser.Input.Keyboard.Key>;
     interactKey = keys.E;
 
     // Set camera to follow
@@ -149,22 +156,51 @@ export function createOfficeScene(): Phaser.Scene {
   ;(scene as any).update = (_time: number, delta: number) => {
     if (!player || !cto) return;
 
-    // Horizontal movement
-    const left = cursors.left?.isDown || wasd.A?.isDown;
-    const right = cursors.right?.isDown || wasd.D?.isDown;
-    const speed = 340;
+    // 4 方向移动（仅方向键）
+    const left = cursors.left?.isDown;
+    const right = cursors.right?.isDown;
+    const up = cursors.up?.isDown;
+    const down = cursors.down?.isDown;
+    const speed = 320;
     const dt = delta / 1000;
     let vx = 0;
+    let vy = 0;
     if (left) vx -= speed;
     if (right) vx += speed;
-    player.x = Phaser.Math.Clamp(player.x + vx * dt, 40, bgWidth - 40);
-    // Simple head bob while moving
-    const baseGround = Math.floor(bgHeight * 0.86);
-    player.y = baseGround - (Math.abs(vx) > 1 ? Math.sin(scene.time.now * 0.015) * 2 : 0);
+    if (up) vy -= speed;
+    if (down) vy += speed;
+    // 归一化对角速度
+    if (vx !== 0 && vy !== 0) { const inv = 1 / Math.sqrt(2); vx *= inv; vy *= inv; }
+    // 允许在背景区域内自由移动
+    player.x = Phaser.Math.Clamp(player.x + vx * dt, minX, maxX);
+    player.y = Phaser.Math.Clamp(player.y + vy * dt, minY, maxY);
+    // 行走动画：水平用帧 0/1，垂直用帧 2/3
+    const moving = Math.abs(vx) + Math.abs(vy) > 1;
+    if (moving) {
+      const useHorizontal = Math.abs(vx) >= Math.abs(vy);
+      const t = Math.floor(scene.time.now / 140) % 2;
+      if (useHorizontal) {
+        player.setFlipX(vx < 0);
+        player.setFrame(t === 0 ? 0 : 1);
+      } else {
+        player.setFlipX(false);
+        player.setFrame(t === 0 ? 2 : 3);
+      }
+    } else {
+      player.setFrame(0);
+    }
+
+    // 伪透视缩放：越靠下越大
+    const t = Phaser.Math.Clamp((player.y - minY) / (maxY - minY), 0, 1);
+    const scale = 0.50 + 0.30 * t; // 0.50 (远) → 0.80 (近)
+    player.setScale(scale);
+    player.setDepth(player.y);
 
     // Proximity + dialog
     // 触发范围稍大以提升易用性
-    const near = Math.abs(player.x - cto.x) < 100;
+    const dx = player.x - cto.sprite.x;
+    const dy = player.y - cto.sprite.y;
+    const near = Math.hypot(dx, dy) < 120;
     if (near) {
       ui.setPrompt('按 E 与 CTO 交谈');
       if (interactKey.isDown && !speakTimer) {
