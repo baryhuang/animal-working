@@ -4,6 +4,7 @@ import { createSimpleNpc, SimpleNpc } from './actors';
 import { createTaskList, TaskListHandle } from './panel';
 import { sfx, startBGMFromUrl } from './audio';
 import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
+import { realtimeSessionManager } from './realtimeManager';
 import { fadeToScene } from './transition';
 import { getState, setPlayerProfile, addClue, advanceHour, getFlag, setFlag, addPoints, computeFinalRating } from './state';
 
@@ -113,8 +114,16 @@ export function createOfficeScene(): Phaser.Scene {
       // Drawer used to render soft circles into the render texture
       focusDrawer = scene.add.graphics().setScrollFactor(0).setVisible(false);
       scene.scale.on('resize', (gs: { width: number; height: number }) => {
-        focusOverlay?.setSize(gs.width, gs.height);
-        focusMaskRT?.setSize(gs.width, gs.height);
+        try {
+          if (focusOverlay && (focusOverlay as any).scene) {
+            focusOverlay.setSize(gs.width, gs.height);
+          }
+        } catch {}
+        try {
+          if (focusMaskRT && (focusMaskRT as any).scene) {
+            focusMaskRT.setSize(gs.width, gs.height);
+          }
+        } catch {}
       });
     }
   };
@@ -415,13 +424,13 @@ export function createOfficeScene(): Phaser.Scene {
         if (openAiKey) {
           setStickyPrompt('Connecting voice…', 2500);
           const tools: RealtimeTool[] = buildCommonTools('CTO');
-          startOpenAiVoiceSession(
-            openAiKey,
-            buildCtoInstructions(),
-            'gpt-4o-realtime-preview',
-            'ash',
+          realtimeSessionManager.ensureSingle('cto', {
+            apiKey: openAiKey,
+            instructions: buildCtoInstructions(),
+            model: 'gpt-4o-realtime-preview',
+            voice: 'ash',
             tools
-          )
+          })
             .then(v => {
               voice = v;
               setStickyPrompt('Voice connected — speak to continue', 2500);
@@ -459,13 +468,13 @@ export function createOfficeScene(): Phaser.Scene {
         isPmConnecting = true;
         const key = openAiKey!;
         const tools: RealtimeTool[] = buildCommonTools('PM');
-        startOpenAiVoiceSession(
-          key,
-          buildPmInstructions(),
-          'gpt-4o-realtime-preview',
-          'ballad',
+        realtimeSessionManager.ensureSingle('pm', {
+          apiKey: key,
+          instructions: buildPmInstructions(),
+          model: 'gpt-4o-realtime-preview',
+          voice: 'ballad',
           tools
-        )
+        })
           .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Colin, your Product Manager.`); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
           .catch(() => setStickyPrompt('PM voice failed', 2000))
           .finally(() => { isPmConnecting = false; });
@@ -501,7 +510,13 @@ export function createOfficeScene(): Phaser.Scene {
           }
         ];
         const key = openAiKey!;
-        startOpenAiVoiceSession(key, buildDesignerInstructions(), 'gpt-4o-realtime-preview', 'coral', tools)
+        realtimeSessionManager.ensureSingle('designer', {
+          apiKey: key,
+          instructions: buildDesignerInstructions(),
+          model: 'gpt-4o-realtime-preview',
+          voice: 'coral',
+          tools
+        })
           .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Jasmine, your Designer.`); v.say('Hey! Want to walk through the design and questions?'); showFocus(designer); })
           .catch(() => setStickyPrompt('Designer voice failed', 2000))
           .finally(() => { isDesignerConnecting = false; });
@@ -553,6 +568,21 @@ export function createOfficeScene(): Phaser.Scene {
     }
   };
 
+  // Ensure any active Realtime sessions are torn down if this scene exits
+  ;(scene as any).shutdown = () => {
+    try { voice?.stop(); } catch {}
+    try { pmVoice?.stop(); } catch {}
+    try { designerVoice?.stop(); } catch {}
+    voice = null; pmVoice = null; designerVoice = null;
+    hideFocus();
+  };
+  ;(scene as any).destroy = () => {
+    try { voice?.stop(); } catch {}
+    try { pmVoice?.stop(); } catch {}
+    try { designerVoice?.stop(); } catch {}
+    voice = null; pmVoice = null; designerVoice = null;
+  };
+
   return scene;
 }
 
@@ -598,7 +628,12 @@ function refreshHud(): void {
   // Since we cannot access ui here, we instead duplicate the logic inline by calling createUI again and using its setClues.
   const ui = createUI();
   const items = Array.from(s.clues).map(id => CLUE_LABELS[id] ?? id);
-  ui.setClues?.(items, s.score, s.hour);
+  const canFinish = s.score >= 30 && !getFlag('victory');
+  ui.setClues?.(items, s.score, s.hour, canFinish, () => {
+    // Show full victory overlay on demand
+    const achievements = Array.from(s.clues).map(id => ({ label: CLUE_LABELS[id] ?? id, points: CLUE_POINTS[id] ?? 0 }));
+    ui.showVictory?.({ score: s.score, rating: 'Win', achievements, onRestart: () => { try { window.location.reload(); } catch {} } });
+  });
 }
 
 const CLUE_POINTS: Record<string, number> = {
@@ -609,6 +644,7 @@ const CLUE_POINTS: Record<string, number> = {
   show_top_skill_badge: 10,
   jump_back_to_last_candidate: 10,
   pm_reprioritized: 10,
+  pm_help_prioritize: 10,
   initiated_ui_review_meeting: 10,
   gpt5_mastery: 0
 };
@@ -621,6 +657,7 @@ const CLUE_LABELS: Record<string, string> = {
   show_top_skill_badge: 'Proposed showing Top-1 skill badge in list',
   jump_back_to_last_candidate: 'Suggested “jump back to last candidate”',
   pm_reprioritized: 'PM accepted reprioritization suggestion',
+  pm_help_prioritize: 'Asked PM to help prioritize tasks',
   initiated_ui_review_meeting: 'Set up UI review in meeting room',
   gpt5_mastery: 'Mentioned GPT-5 (AI leverage)'
 };
@@ -702,7 +739,7 @@ function buildCtoInstructions(): string {
 
 function buildPmInstructions(): string {
   const s = getState();
-  return `You are Colin as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Colin, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
+  return `You are Colin as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Colin, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. When the intern asks you to help prioritize tasks or backlog, call add_clue with id pm_help_prioritize. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria, pm_help_prioritize. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildDesignerInstructions(): string {
@@ -714,16 +751,9 @@ function maybeShowVictory(): void {
   const s = getState();
   if (getFlag('victory')) return;
   if (s.score >= 30) {
-    setFlag('victory', true);
-    const ui = createUI();
-    const achievements = Array.from(s.clues).map(id => ({ label: CLUE_LABELS[id] ?? id, points: CLUE_POINTS[id] ?? 0 }));
-    ui.showVictory?.({
-      score: s.score,
-      rating: 'Win',
-      achievements,
-      onRestart: () => { try { window.location.reload(); } catch {} }
-    });
+    // Do not pop full-screen; mark goal achieved on scoreboard with finish button
     try { sfx('ok'); } catch {}
+    refreshHud();
   }
 }
 

@@ -3,6 +3,7 @@ import { createUI, DialogHandle } from './ui';
 import { fadeIn, fadeToScene } from './transition';
 import { getState, advanceHour } from './state';
 import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
+import { realtimeSessionManager } from './realtimeManager';
 
 export function createDesignerMeetingScene(): Phaser.Scene {
   const scene = new Phaser.Scene('DesignerMeeting');
@@ -52,13 +53,13 @@ export function createDesignerMeetingScene(): Phaser.Scene {
           handler: () => fadeToScene(scene, 'Office', { duration: 420, onBeforeStart: () => { advanceHour(1); const ui2 = createUI(); const s = getState(); ui2.setClues?.(Array.from(s.clues), s.score, s.hour); } })
         }
       ];
-      startOpenAiVoiceSession(
-        openAiKey,
-        'You are Jasmine as Designer. On your first message, continue the conversation with: "Hi Andy, what do you need help with?" We are in the meeting room—help the user clarify design and call go_back_to_office when they say they are clear.',
-        'gpt-4o-realtime-preview',
-        'coral',
+      realtimeSessionManager.ensureSingle('designer_meeting', {
+        apiKey: openAiKey,
+        instructions: 'You are Jasmine as Designer. On your first message, continue the conversation with: "Hi Andy, what do you need help with?" We are in the meeting room—help the user clarify design and call go_back_to_office when they say they are clear.',
+        model: 'gpt-4o-realtime-preview',
+        voice: 'coral',
         tools
-      ).then(v => { voice = v; const s = getState(); voice.say(`Hi ${s.playerName}, I'm Jasmine, your Designer.`); voice.say("Let's begin. We'll check information hierarchy, contrast, and spacing. Interrupt me anytime."); })
+      }).then(v => { voice = v; const s = getState(); voice.say(`Hi ${s.playerName}, I'm Jasmine, your Designer.`); voice.say("Let's begin. We'll check information hierarchy, contrast, and spacing. Interrupt me anytime."); })
        .catch(() => {/* ignore */})
        .finally(() => { isConnecting = false; });
     }

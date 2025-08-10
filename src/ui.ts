@@ -6,7 +6,7 @@ export type DialogHandle = {
   cancelAsk?: () => void;
   showStartModal?: (onSubmit: (company: string, role: string, name: string) => void) => void;
   toggleCluePanel?: () => void;
-  setClues?: (items: string[], score: number, hour: number) => void;
+  setClues?: (items: string[], score: number, hour: number, canFinish?: boolean, onFinish?: () => void) => void;
   showVictory?: (opts: { score: number; rating?: string; onRestart: () => void; achievements?: { label: string; points: number }[] }) => void;
   hideVictory?: () => void;
   showMastery?: (opts: { title?: string; message?: string; onClose?: () => void }) => void;
@@ -138,14 +138,22 @@ export function createUI(): DialogHandle {
     (clueDiv!.querySelector('#clue_body') as HTMLElement).style.display = collapsed ? 'none' : 'block';
     (clueDiv!.querySelector('#clue_toggle') as HTMLElement).textContent = collapsed ? '▼' : '▲';
   };
-  const setClues = (items: string[], score: number, hour: number) => {
+  const setClues = (items: string[], score: number, hour: number, canFinish?: boolean, onFinish?: () => void) => {
     ensureClues();
     const body = clueDiv!.querySelector('#clue_body') as HTMLElement;
     const timeStr = `${hour}:00`;
-    body.innerHTML = [
-      `<div style="opacity:0.88;margin-bottom:6px;font-weight:700;">Time: <span style=\"color:#ffd48a\">${timeStr}</span> · Score: <span style=\"color:#ffd48a\">${score}</span></div>`,
-      ...items.map(i => `<div style="margin:1px 0;">• ${i}</div>`)
-    ].join('');
+    const lines: string[] = [];
+    lines.push(`<div style="opacity:0.88;margin-bottom:6px;font-weight:700;">Time: <span style=\"color:#ffd48a\">${timeStr}</span> · Score: <span style=\"color:#ffd48a\">${score}</span></div>`);
+    if (canFinish) {
+      lines.push(`<div style=\"margin:6px 0 8px 0;padding:8px;border:1px dashed rgba(255,212,138,0.5);border-radius:8px;color:#ffd48a;\">Goal achieved · You can end anytime.</div>`);
+      lines.push(`<div><button id=\"finish_btn\" style=\"padding:8px 10px;border-radius:8px;background:rgba(255,212,138,0.16);color:#ffd48a;border:1px solid rgba(255,212,138,0.42);font-weight:700;cursor:pointer;\">End & Deliver</button></div>`);
+    }
+    lines.push(...items.map(i => `<div style="margin:1px 0;">• ${i}</div>`));
+    body.innerHTML = lines.join('');
+    if (canFinish && onFinish) {
+      const btn = body.querySelector('#finish_btn') as HTMLButtonElement | null;
+      if (btn) btn.onclick = () => { try { onFinish(); } catch {} };
+    }
   };
 
   // Victory overlay
