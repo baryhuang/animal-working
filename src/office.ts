@@ -103,6 +103,7 @@ export function createOfficeScene(): Phaser.Scene {
     scene.load.image('player_raw', playerUrl);
     scene.load.image('pm_raw', pmUrl);
     scene.load.image('designer_raw', designerUrl);
+    scene.load.image('nametag', new URL('./assets/nametag.png', import.meta.url).toString());
     scene.load.image('task_list', new URL('./assets/task_list.png', import.meta.url).toString());
   };
   function setupCtoSprite(): void {
@@ -249,6 +250,11 @@ export function createOfficeScene(): Phaser.Scene {
     setupCtoSprite();
     setupPMSprite();
     setupDesignerSprite();
+
+    // Attach name tags to NPCs (Name on top plate, Role on large plate)
+    attachNameTag(cto.sprite, 'Bary', 'CTO');
+    attachNameTag(pm.sprite, 'Sarah', 'Product Manager');
+    attachNameTag(designer.sprite, 'Jasmine', 'Designer');
 
     // Start modal once; skip when returning to Office
     if (!getFlag('started')) {
@@ -467,6 +473,33 @@ export function createOfficeScene(): Phaser.Scene {
 }
 
 // --- Helpers and realtime tool builders ---
+function attachNameTag(target: Phaser.GameObjects.Sprite, name: string, role: string): void {
+  const container = target.scene.add.container(target.x, target.y).setDepth(target.depth + 1);
+  const bg = target.scene.add.image(0, 0, 'nametag').setOrigin(0.5, 1).setAlpha(0.96);
+  bg.setScale(0.5);
+  const nameText = target.scene.add.text(0, -bg.displayHeight + 22, name, {
+    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, sans-serif',
+    fontSize: '60px',
+    color: '#3a2a10',
+    fontStyle: 'bold'
+  }).setOrigin(0.5, 0.5);
+  const roleText = target.scene.add.text(0, -bg.displayHeight * 0.42, role, {
+    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, sans-serif',
+    fontSize: '70px',
+    color: '#3a2a10',
+    fontStyle: 'bold'
+  }).setOrigin(0.5, 0.5);
+  container.add([bg, nameText, roleText]);
+  const update = () => {
+    const yOffset = target.displayHeight + 18;
+    container.setPosition(target.x, target.y - yOffset);
+    container.setDepth(target.depth + 1);
+    const s = Phaser.Math.Clamp(target.scale * 0.9, 0.45, 1.2);
+    container.setScale(s);
+  };
+  target.scene.events.on('update', update);
+}
+
 function refreshHud(): void {
   const s = getState();
   // Use createUI singleton to set clues; the UI instance is bound above as 'ui'
