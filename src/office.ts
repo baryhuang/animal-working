@@ -34,14 +34,17 @@ export function createOfficeScene(): Phaser.Scene {
   // CTO sprite and timers
   let cto!: SimpleNpc;
   let pm!: SimpleNpc;
+  let designer!: SimpleNpc;
   let idleBlinkTimer: Phaser.Time.TimerEvent | null = null;
   let speakTimer: Phaser.Time.TimerEvent | null = null;
   let pmSpeakTimer: Phaser.Time.TimerEvent | null = null;
+  let designerSpeakTimer: Phaser.Time.TimerEvent | null = null;
 
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
   const playerUrl = new URL('./assets/player.png', import.meta.url).toString();
   const pmUrl = new URL('./assets/product_manager.png', import.meta.url).toString();
+  const designerUrl = new URL('./assets/designer.png', import.meta.url).toString();
 
   // Using 'as any' to attach lifecycle functions to the Scene instance to satisfy TS typings
   ;(scene as any).preload = () => {
@@ -49,6 +52,7 @@ export function createOfficeScene(): Phaser.Scene {
     scene.load.image('cto_raw', ctoUrl);
     scene.load.image('player_raw', playerUrl);
     scene.load.image('pm_raw', pmUrl);
+    scene.load.image('designer_raw', designerUrl);
   };
 
   function setupCtoSprite(): void {
@@ -107,6 +111,29 @@ export function createOfficeScene(): Phaser.Scene {
       x: pmX,
       y: pmY,
       sheetKey: 'pm',
+      idleFrame: 3,
+      speakFrame: 1,
+      blinkFrame: 2,
+      perspective: { worldHeight: bgHeight, min: 0.16, max: 0.46 },
+      bob: { amplitude: 1, durationMs: 1800 }
+    });
+  }
+
+  function setupDesignerSprite(): void {
+    const raw = scene.textures.get('designer_raw').getSourceImage() as HTMLImageElement;
+    const frameWidth = Math.floor(raw.width / 2);
+    const frameHeight = Math.floor(raw.height / 2);
+    if (!scene.textures.exists('designer')) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (scene.textures as any).addSpriteSheet('designer', raw, { frameWidth, frameHeight, endFrame: 3 });
+    }
+    // Place designer towards front-right area
+    const dx = Math.floor(bgWidth * 0.84);
+    const dy = Math.floor(bgHeight * 0.82);
+    designer = createSimpleNpc(scene, {
+      x: dx,
+      y: dy,
+      sheetKey: 'designer',
       idleFrame: 3,
       speakFrame: 1,
       blinkFrame: 2,
@@ -176,6 +203,7 @@ export function createOfficeScene(): Phaser.Scene {
     // CTO sprite and idle loop
     setupCtoSprite();
     setupPMSprite();
+    setupDesignerSprite();
 
     // Hint
     ui.setPrompt('靠近 CTO（右上区域） · 按 E 交互');
@@ -228,6 +256,7 @@ export function createOfficeScene(): Phaser.Scene {
     let prompt: string | null = null;
     const nearCto = Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 120;
     const nearPm = pm ? Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 120 : false;
+    const nearDesigner = designer ? Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 120 : false;
     if (nearCto) {
       prompt = '按 E 与 CTO 交谈';
       if (interactKey.isDown && !speakTimer) {
@@ -247,6 +276,17 @@ export function createOfficeScene(): Phaser.Scene {
           ui.hide();
           pm.stopSpeaking();
           pmSpeakTimer = null;
+        });
+      }
+    } else if (nearDesigner) {
+      prompt = '按 E 与 设计师 交谈';
+      if (interactKey.isDown && !designerSpeakTimer) {
+        designer.startSpeaking();
+        ui.show(['设计师: 我在做新的 UI 设计稿', '等你把需求整理好再来一起迭代。']);
+        designerSpeakTimer = scene.time.delayedCall(1400, () => {
+          ui.hide();
+          designer.stopSpeaking();
+          designerSpeakTimer = null;
         });
       }
     }
