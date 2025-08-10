@@ -126,12 +126,17 @@ export function createOfficeScene(): Phaser.Scene {
     updateFocusMask(npc);
   };
   const updateFocusMask = (npc: SimpleNpc) => {
-    if (!focusOverlay || !focusMaskRT || !focusDrawer) return;
+    if (!focusOverlay) return;
+    if (!focusMaskRT || !focusDrawer) {
+      // mask may have been disposed by WebGL; rebuild and continue gracefully
+      ensureFocusOverlay();
+      if (!focusMaskRT || !focusDrawer) return;
+    }
     const cam = scene.cameras.main;
     const toScreenX = (x: number) => x - cam.scrollX;
     const toScreenY = (y: number) => y - cam.scrollY;
-    // Clear previous mask by filling with transparent black
-    focusMaskRT.clear();
+    // Clear previous mask; guard GL access
+    try { focusMaskRT.clear(); } catch { ensureFocusOverlay(); return; }
     focusDrawer.clear();
     // Draw feathered circles into the drawer, then blit into RT
     const drawFeathered = (x: number, y: number, base: number) => {
