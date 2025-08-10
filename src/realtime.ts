@@ -6,7 +6,7 @@ export type VoiceSession = {
   isActive: () => boolean;
 };
 
-export async function startOpenAiVoiceSession(apiKey: string, instructions = 'You are a friendly CTO. Talk concisely.', model = 'gpt-4o-realtime-preview-2024-12-17', voice = 'alloy'): Promise<VoiceSession> {
+export async function startOpenAiVoiceSession(apiKey: string, instructions = 'You are a friendly CTO. Talk concisely.', model = 'gpt-4o-realtime-preview', voice = 'onyx'): Promise<VoiceSession> {
   const pc = new RTCPeerConnection();
   let closed = false;
 

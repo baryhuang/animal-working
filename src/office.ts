@@ -307,7 +307,12 @@ export function createOfficeScene(): Phaser.Scene {
           openAiKey = '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';
           if (openAiKey) {
             setStickyPrompt('连接语音中…', 2500);
-            startOpenAiVoiceSession(openAiKey, '你是 CTO，用简洁亲和的口吻和玩家语音交流。遇到设计/产品问题可以给建议。')
+            startOpenAiVoiceSession(
+              openAiKey,
+              '你是 CTO，用简洁亲和的口吻和玩家语音交流。遇到设计/产品问题可以给建议。',
+              'gpt-4o-realtime-preview',
+              'onyx' // male-like voice
+            )
               .then(v => { voice = v; setStickyPrompt('语音已连接，对着麦克风说话', 2500); setVoiceChip(true); })
               .catch((e) => setStickyPrompt('语音连接失败', 2500));
           } else {
