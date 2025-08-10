@@ -170,7 +170,7 @@ export function createUI(): DialogHandle {
       'backdrop-filter: blur(6px)'
     ].join(';');
     const title = document.createElement('div');
-    title.textContent = 'Victory!';
+    title.textContent = `You did it!`;
     title.style.cssText = 'font-family: Orbitron, sans-serif; font-weight:700; font-size:32px; letter-spacing:0.04em; color:#ffd48a; margin-bottom:12px;';
     const sub = document.createElement('div');
     sub.textContent = `Final Score: ${score}${rating ? ` · ${rating}` : ''}`;
