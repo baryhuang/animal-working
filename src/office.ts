@@ -554,11 +554,12 @@ function maybeShowVictory(): void {
   if (s.score >= 30) {
     setFlag('victory', true);
     const ui = createUI();
-    ui.show([`Victory! Score ${s.score} ≥ 30. Press E to restart.`]);
+    ui.showVictory?.({
+      score: s.score,
+      rating: computeFinalRating().rating,
+      onRestart: () => { try { window.location.reload(); } catch {} }
+    });
     try { sfx('ok'); } catch {}
-    // Record shown time to debounce restart key
-    // Store on window for simplicity
-    (window as any).__victoryShownAt = Date.now();
   }
 }
 

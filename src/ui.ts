@@ -7,6 +7,8 @@ export type DialogHandle = {
   showStartModal?: (onSubmit: (company: string, role: string, name: string) => void) => void;
   toggleCluePanel?: () => void;
   setClues?: (items: string[], score: number, hour: number) => void;
+  showVictory?: (opts: { score: number; rating?: string; onRestart: () => void }) => void;
+  hideVictory?: () => void;
 };
 
 export function createUI(): DialogHandle {
@@ -137,7 +139,49 @@ export function createUI(): DialogHandle {
       ...items.map(i => `<div>• ${i}</div>`) ].join('');
   };
 
-  return { show, hide, setPrompt, ask, cancelAsk, showStartModal, toggleCluePanel, setClues };
+  // Victory overlay
+  let victoryDiv: HTMLElement | null = null;
+  const hideVictory = () => { victoryDiv?.remove(); victoryDiv = null; };
+  const showVictory = (opts: { score: number; rating?: string; onRestart: () => void }) => {
+    hideVictory();
+    const { score, rating, onRestart } = opts;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed','inset:0','z-index:50',
+      'display:flex','align-items:center','justify-content:center',
+      'background: radial-gradient(1200px 800px at 50% 30%, rgba(20,24,34,0.92) 0%, rgba(10,12,18,0.94) 60%, rgba(6,7,11,0.98) 100%)'
+    ].join(';');
+    const card = document.createElement('div');
+    card.style.cssText = [
+      'background: linear-gradient(180deg, rgba(26,32,40,0.9), rgba(14,18,26,0.9))',
+      'border: 1px solid rgba(255,255,255,0.08)',
+      'box-shadow: 0 30px 80px rgba(0,0,0,0.6)',
+      'border-radius: 16px','padding: 22px 26px','min-width: 420px','text-align:center',
+      'color:#e6f1ff','font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif'
+    ].join(';');
+    const title = document.createElement('div');
+    title.textContent = 'Victory!';
+    title.style.cssText = 'font-family: Orbitron, sans-serif; font-weight:700; font-size:28px; letter-spacing:0.04em; color:#2ce6ff; margin-bottom:10px;';
+    const sub = document.createElement('div');
+    sub.textContent = `Final Score: ${score}${rating ? ` · ${rating}` : ''}`;
+    sub.style.cssText = 'opacity:0.9;margin-bottom:16px;';
+    const btn = document.createElement('button');
+    btn.textContent = 'Play Again';
+    btn.style.cssText = [
+      'padding:10px 14px','border-radius:10px','cursor:pointer',
+      'background: rgba(44,230,255,0.12)','color:#a8f0ff',
+      'border:1px solid rgba(44,230,255,0.35)','font-weight:600'
+    ].join(';');
+    btn.onclick = () => { try { onRestart(); } catch {} };
+    card.appendChild(title);
+    card.appendChild(sub);
+    card.appendChild(btn);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    victoryDiv = overlay;
+  };
+
+  return { show, hide, setPrompt, ask, cancelAsk, showStartModal, toggleCluePanel, setClues, showVictory, hideVictory };
 }
 
 
