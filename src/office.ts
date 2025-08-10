@@ -415,7 +415,6 @@ export function createOfficeScene(): Phaser.Scene {
     const nearPm = dPm < 120;
     const nearDesigner = dDesigner < 120;
     // openAiKey can be provided via env/localStorage; don't overwrite here
-    openAiKey = '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';
     if (nearCto) {
       prompt = 'Approach CTO · voice will start (press E for text)';
       // Auto-start voice once when near CTO

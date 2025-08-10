@@ -40,8 +40,6 @@ export function createDesignerMeetingScene(): Phaser.Scene {
 
     fadeIn(scene, { duration: 420 });
 
-    openAiKey = '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';
-
     // Auto start designer voice in meeting; add a tool to go back to office when user says it's clear/done
     if (!isConnecting && !voice && openAiKey) {
       isConnecting = true;
