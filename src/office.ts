@@ -41,7 +41,7 @@ export function createOfficeScene(): Phaser.Scene {
   let pmVoice: VoiceSession | null = null;
   // Prefer env var, then localStorage('oaiKey'), then window.OPENAI_API_KEY for dev
   let openAiKey: string | null =
-    ((import.meta as any)?.env?.VITE_OPENAI_API_KEY as string | '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') ??
+    ((import.meta as any)?.env?.VITE_OPENAI_API_KEY as string | null) ??
     (localStorage.getItem('oaiKey') as string | null) ??
     ((window as any).OPENAI_API_KEY as string | null) ??
     null;
