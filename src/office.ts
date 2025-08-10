@@ -174,7 +174,7 @@ export function createOfficeScene(): Phaser.Scene {
   const playerUrl = new URL('./assets/player.png', import.meta.url).toString();
   const pmUrl = new URL('./assets/product_manager.png', import.meta.url).toString();
   const designerUrl = new URL('./assets/designer.png', import.meta.url).toString();
-  const bgmUrl = new URL('./assets/bgm.mp3', import.meta.url).toString();
+  const bgmUrl = 'https://readymojo-uploads.s3.us-east-2.amazonaws.com/public-data/bgm.mp3';
 
   // Using 'as any' to attach lifecycle functions to the Scene instance to satisfy TS typings
   ;(scene as any).preload = () => {
