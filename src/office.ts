@@ -33,18 +33,22 @@ export function createOfficeScene(): Phaser.Scene {
 
   // CTO sprite and timers
   let cto!: SimpleNpc;
+  let pm!: SimpleNpc;
   let idleBlinkTimer: Phaser.Time.TimerEvent | null = null;
   let speakTimer: Phaser.Time.TimerEvent | null = null;
+  let pmSpeakTimer: Phaser.Time.TimerEvent | null = null;
 
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
   const playerUrl = new URL('./assets/player.png', import.meta.url).toString();
+  const pmUrl = new URL('./assets/product_manager.png', import.meta.url).toString();
 
   // Using 'as any' to attach lifecycle functions to the Scene instance to satisfy TS typings
   ;(scene as any).preload = () => {
     scene.load.image('office_bg', officeUrl);
     scene.load.image('cto_raw', ctoUrl);
     scene.load.image('player_raw', playerUrl);
+    scene.load.image('pm_raw', pmUrl);
   };
 
   function setupCtoSprite(): void {
@@ -86,6 +90,29 @@ export function createOfficeScene(): Phaser.Scene {
       });
     };
     scheduleBlink();
+  }
+
+  function setupPMSprite(): void {
+    const raw = scene.textures.get('pm_raw').getSourceImage() as HTMLImageElement;
+    const frameWidth = Math.floor(raw.width / 2);
+    const frameHeight = Math.floor(raw.height / 2);
+    if (!scene.textures.exists('pm')) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (scene.textures as any).addSpriteSheet('pm', raw, { frameWidth, frameHeight, endFrame: 3 });
+    }
+    // Move PM further left and slightly closer to camera
+    const pmX = Math.floor(bgWidth * 0.30);
+    const pmY = Math.floor(bgHeight * 0.78);
+    pm = createSimpleNpc(scene, {
+      x: pmX,
+      y: pmY,
+      sheetKey: 'pm',
+      idleFrame: 3,
+      speakFrame: 1,
+      blinkFrame: 2,
+      perspective: { worldHeight: bgHeight, min: 0.16, max: 0.46 },
+      bob: { amplitude: 1, durationMs: 1800 }
+    });
   }
 
   function setupPlayerSprite(spawnX: number, groundY: number): void {
@@ -148,6 +175,7 @@ export function createOfficeScene(): Phaser.Scene {
 
     // CTO sprite and idle loop
     setupCtoSprite();
+    setupPMSprite();
 
     // Hint
     ui.setPrompt('靠近 CTO（右上区域） · 按 E 交互');
@@ -197,12 +225,11 @@ export function createOfficeScene(): Phaser.Scene {
     player.setDepth(player.y);
 
     // Proximity + dialog
-    // 触发范围稍大以提升易用性
-    const dx = player.x - cto.sprite.x;
-    const dy = player.y - cto.sprite.y;
-    const near = Math.hypot(dx, dy) < 120;
-    if (near) {
-      ui.setPrompt('按 E 与 CTO 交谈');
+    let prompt: string | null = null;
+    const nearCto = Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 120;
+    const nearPm = pm ? Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 120 : false;
+    if (nearCto) {
+      prompt = '按 E 与 CTO 交谈';
       if (interactKey.isDown && !speakTimer) {
         startSpeaking();
         ui.show(['CTO: 欢迎加入！', '有问题随时来找我。']);
@@ -211,7 +238,19 @@ export function createOfficeScene(): Phaser.Scene {
           stopSpeaking();
         });
       }
+    } else if (nearPm) {
+      prompt = '按 E 与 PM 交谈';
+      if (interactKey.isDown && !pmSpeakTimer) {
+        pm.startSpeaking();
+        ui.show(['PM: 你好，我是产品经理。', '先去和 CTO 打个招呼吧～']);
+        pmSpeakTimer = scene.time.delayedCall(1400, () => {
+          ui.hide();
+          pm.stopSpeaking();
+          pmSpeakTimer = null;
+        });
+      }
     }
+    ui.setPrompt(prompt);
   };
 
   return scene;
