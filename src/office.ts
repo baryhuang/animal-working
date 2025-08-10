@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { createUI, DialogHandle } from './ui';
 import { createSimpleNpc, SimpleNpc } from './actors';
 import { createTaskList, TaskListHandle } from './panel';
-import { sfx } from './audio';
+import { sfx, startBGMFromUrl } from './audio';
 import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
 import { fadeToScene } from './transition';
 import { getState, setPlayerProfile, addClue, advanceHour, getFlag, setFlag, addPoints, computeFinalRating } from './state';
@@ -95,6 +95,7 @@ export function createOfficeScene(): Phaser.Scene {
   const playerUrl = new URL('./assets/player.png', import.meta.url).toString();
   const pmUrl = new URL('./assets/product_manager.png', import.meta.url).toString();
   const designerUrl = new URL('./assets/designer.png', import.meta.url).toString();
+  const bgmUrl = new URL('./assets/bgm.mp3', import.meta.url).toString();
 
   // Using 'as any' to attach lifecycle functions to the Scene instance to satisfy TS typings
   ;(scene as any).preload = () => {
@@ -227,7 +228,8 @@ export function createOfficeScene(): Phaser.Scene {
     scene.cameras.main.setBackgroundColor('#0e1014');
 
     scene.add.image(0, 0, 'office_bg').setOrigin(0, 0).setDepth(-1000);
-    // BGM disabled temporarily
+    // Start low-volume background music (auto-stops previous if any)
+    startBGMFromUrl(bgmUrl, 0.03).catch(() => {/* ignore */});
 
     // Player spawn lower-right, close to CTO path
     const groundY = Math.floor(bgHeight * 0.86);

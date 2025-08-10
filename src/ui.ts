@@ -118,8 +118,13 @@ export function createUI(): DialogHandle {
   const ensureClues = () => {
     if (!clueDiv) {
       clueDiv = document.createElement('div');
-      clueDiv.style.cssText = 'position:fixed;top:12px;right:16px;max-width:360px;background:rgba(12,14,20,0.75);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;color:#dfeaff;z-index:12;font-family:Inter,sans-serif;';
-      clueDiv.innerHTML = '<div id="clue_head" style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;"><div>Clues & Time</div><div id="clue_toggle">▲</div></div><div id="clue_body" style="margin-top:8px;font-size:12px;line-height:1.3"></div>';
+      clueDiv.style.cssText = [
+        'position:fixed','top:12px','right:16px','max-width:460px',
+        'background: var(--hud)','border: 1px solid var(--hud-border)','border-radius:10px',
+        'padding:12px 14px','color: var(--text)','z-index:12','font-family: Inter, sans-serif',
+        'backdrop-filter: blur(6px)','transform: scale(1.6)','transform-origin: 100% 0%'
+      ].join(';');
+      clueDiv.innerHTML = '<div id="clue_head" style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;"><div style="font-family:Inter,system-ui,sans-serif;font-weight:700;letter-spacing:0.02em;font-size:17px;color:#ffd48a">Scoreboard</div><div id="clue_toggle" style="font-size:14px;opacity:0.8;color:#ffd48a">▲</div></div><div id="clue_body" style="margin-top:8px;font-size:13px;line-height:1.32"></div>';
       document.body.appendChild(clueDiv);
       clueDiv.querySelector('#clue_head')!.addEventListener('click', () => toggleCluePanel());
     }
@@ -135,8 +140,10 @@ export function createUI(): DialogHandle {
     ensureClues();
     const body = clueDiv!.querySelector('#clue_body') as HTMLElement;
     const timeStr = `${hour}:00`;
-    body.innerHTML = [`<div style="opacity:0.8;margin-bottom:6px;">Time: ${timeStr} · Score: ${score}</div>`,
-      ...items.map(i => `<div>• ${i}</div>`) ].join('');
+    body.innerHTML = [
+      `<div style="opacity:0.88;margin-bottom:6px;font-weight:700;">Time: <span style=\"color:#ffd48a\">${timeStr}</span> · Score: <span style=\"color:#ffd48a\">${score}</span></div>`,
+      ...items.map(i => `<div style="margin:1px 0;">• ${i}</div>`)
+    ].join('');
   };
 
   // Victory overlay
