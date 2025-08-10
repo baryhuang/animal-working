@@ -176,7 +176,7 @@ export function createGameScene(config: SceneConfig = {}): Phaser.Scene {
 
   const scene = new Phaser.Scene(config.name ?? 'Game');
 
-  scene.preload = () => {
+  ;(scene as any).preload = () => {
     createHeroTexture(scene);
     createTreeTexture(scene);
     createRockTexture(scene);
@@ -185,7 +185,7 @@ export function createGameScene(config: SceneConfig = {}): Phaser.Scene {
     createGroundTexture(scene);
   };
 
-  scene.create = () => {
+  ;(scene as any).create = () => {
     ui = createUI();
     enterKey = scene.input.keyboard!.addKey('E');
     scene.cameras.main.setZoom(1.15);
@@ -357,7 +357,7 @@ export function createGameScene(config: SceneConfig = {}): Phaser.Scene {
     }
 
     // Camera slight tilt by velocity
-    const cam = scene.cameras.main;
+    const cam = scene.cameras.main as any;
     cam.setLerp(0.12, 0.12);
     // Slight dynamic zoom by Y to accentuate perspective
     cam.setZoom(1.05 + 0.15 * yRatio + 0.03 * (isDashing ? 1 : 0));

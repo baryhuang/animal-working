@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { createLobbyScene, createMeetingScene, createEngineeringScene, createLoungeScene, createLabScene } from './scenes_side';
+import { createOfficeScene } from './office';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -14,9 +15,10 @@ const config: Phaser.Types.Core.GameConfig = {
   },
   physics: {
     default: 'arcade',
-    arcade: { gravity: { y: 0 }, debug: false }
+    arcade: { gravity: { x: 0, y: 0 }, debug: false }
   },
   scene: [
+    createOfficeScene(),
     createLobbyScene(),
     createMeetingScene(),
     createEngineeringScene(),

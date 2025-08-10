@@ -98,12 +98,12 @@ export function createSideScene(cfg: SideSceneConfig): Phaser.Scene {
 
   const scene = new Phaser.Scene(cfg.name);
 
-  scene.preload = () => {
+  ;(scene as any).preload = () => {
     createHeroTexture(scene);
     createDoorTexture(scene);
   };
 
-  scene.create = () => {
+  ;(scene as any).create = () => {
     ui = createUI();
     createBackdrop(scene, worldWidth);
 
@@ -157,7 +157,7 @@ export function createSideScene(cfg: SideSceneConfig): Phaser.Scene {
     if (cfg.onEnter) cfg.onEnter(scene, ui);
   };
 
-  scene.update = (_time, delta) => {
+  ;(scene as any).update = (_time: number, delta: number) => {
     if (!player) return;
 
     // Movement
