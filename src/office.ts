@@ -90,6 +90,70 @@ export function createOfficeScene(): Phaser.Scene {
   let isDesignerConnecting = false;
   let isPmConnecting = false;
 
+  // Focus overlay (dim everything except player + active NPC)
+  let focusOverlay: Phaser.GameObjects.Rectangle | null = null;
+  let focusMaskGfx: Phaser.GameObjects.Graphics | null = null; // legacy (not rendered)
+  let focusMaskRT: Phaser.GameObjects.RenderTexture | null = null;
+  let focusDrawer: Phaser.GameObjects.Graphics | null = null;
+  let focusedNpc: SimpleNpc | null = null;
+  const ensureFocusOverlay = () => {
+    if (!focusOverlay) {
+      focusOverlay = scene.add.rectangle(0, 0, scene.scale.width, scene.scale.height, 0x000000, 0.62)
+        .setOrigin(0, 0)
+        .setScrollFactor(0)
+        .setDepth(9998)
+        .setVisible(false);
+      // Bitmap mask to support feathered alpha
+      focusMaskRT = scene.add.renderTexture(0, 0, scene.scale.width, scene.scale.height).setOrigin(0, 0).setScrollFactor(0).setVisible(false);
+      const mask = new Phaser.Display.Masks.BitmapMask(scene, focusMaskRT);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (mask as any).invertAlpha = true;
+      focusOverlay.setMask(mask);
+
+      // Drawer used to render soft circles into the render texture
+      focusDrawer = scene.add.graphics().setScrollFactor(0).setVisible(false);
+      scene.scale.on('resize', (gs: { width: number; height: number }) => {
+        focusOverlay?.setSize(gs.width, gs.height);
+        focusMaskRT?.setSize(gs.width, gs.height);
+      });
+    }
+  };
+  const showFocus = (npc: SimpleNpc) => {
+    ensureFocusOverlay();
+    if (!focusOverlay || !focusMaskRT || !focusDrawer) return;
+    focusOverlay.setVisible(true);
+    focusedNpc = npc;
+    updateFocusMask(npc);
+  };
+  const updateFocusMask = (npc: SimpleNpc) => {
+    if (!focusOverlay || !focusMaskRT || !focusDrawer) return;
+    const cam = scene.cameras.main;
+    const toScreenX = (x: number) => x - cam.scrollX;
+    const toScreenY = (y: number) => y - cam.scrollY;
+    // Clear previous mask
+    focusMaskRT.clear();
+    focusDrawer.clear();
+    // Draw feathered circles into the drawer, then blit into RT
+    const drawFeathered = (x: number, y: number, base: number) => {
+      for (let i = 0; i < 6; i++) {
+        const r = base + i * 20;
+        const a = Math.max(0.08, 1 - i * 0.2);
+        focusDrawer!.fillStyle(0xffffff, a);
+        focusDrawer!.fillCircle(x, y, r);
+      }
+    };
+    drawFeathered(toScreenX(player.x), toScreenY(player.y - 62), 120);
+    drawFeathered(toScreenX(npc.sprite.x), toScreenY(npc.sprite.y - 62), 140);
+    focusMaskRT.draw(focusDrawer, 0, 0);
+  };
+  const hideFocus = () => {
+    if (!focusOverlay || !focusMaskRT || !focusDrawer) return;
+    focusOverlay.setVisible(false);
+    focusMaskRT.clear();
+    focusDrawer.clear();
+    focusedNpc = null;
+  };
+
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
   const playerUrl = new URL('./assets/player.png', import.meta.url).toString();
@@ -362,6 +426,7 @@ export function createOfficeScene(): Phaser.Scene {
               v.say(`Hi ${_s.playerName}, I'm Bary, your CTO.`);
               v.say('Good to see you. Start with scope, design, or metrics?');
               scene.time.delayedCall(500, () => voice?.say('If you can hear me, just start talking.'));
+              showFocus(cto);
             })
             .catch(() => setStickyPrompt('Voice connection failed', 2500))
             .finally(() => { isVoiceConnecting = false; });
@@ -398,6 +463,7 @@ export function createOfficeScene(): Phaser.Scene {
           .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Colin, your Product Manager.`); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
           .catch(() => setStickyPrompt('PM voice failed', 2000))
           .finally(() => { isPmConnecting = false; });
+        if (pm) showFocus(pm);
       }
     } else if (nearDesigner) {
       prompt = 'Approach Designer · voice starts automatically';
@@ -430,7 +496,7 @@ export function createOfficeScene(): Phaser.Scene {
         ];
         const key = openAiKey!;
         startOpenAiVoiceSession(key, buildDesignerInstructions(), 'gpt-4o-realtime-preview', 'coral', tools)
-          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Jasmine, your Designer.`); v.say('Hey! Want to walk through the design and questions?'); })
+          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Jasmine, your Designer.`); v.say('Hey! Want to walk through the design and questions?'); showFocus(designer); })
           .catch(() => setStickyPrompt('Designer voice failed', 2000))
           .finally(() => { isDesignerConnecting = false; });
       }
@@ -447,17 +513,25 @@ export function createOfficeScene(): Phaser.Scene {
         voice.stop();
         voice = null;
         setVoiceChip(false);
+        hideFocus();
       }
       if (designerVoice?.isActive?.() && !(dDesigner < 140)) {
         designerVoice.stop();
         designerVoice = null;
         setVoiceChip(false);
+        hideFocus();
       }
       if (pmVoice?.isActive?.() && !(dPm < 140)) {
         pmVoice.stop();
         pmVoice = null;
         setVoiceChip(false);
+        hideFocus();
       }
+    }
+
+    // Keep focus mask aligned while active
+    if (focusOverlay?.visible && focusedNpc) {
+      updateFocusMask(focusedNpc);
     }
     // Victory restart handling
     if (getFlag('victory') && interactKey.isDown && scene.time.now - victoryShownAt > 500) {
