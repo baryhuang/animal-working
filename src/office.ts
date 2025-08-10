@@ -212,6 +212,8 @@ export function createOfficeScene(): Phaser.Scene {
     cto.stopSpeaking();
   }
 
+  let victoryShownAt = 0;
+
   ;(scene as any).create = () => {
     ui = createUI();
 
@@ -248,11 +250,17 @@ export function createOfficeScene(): Phaser.Scene {
     setupPMSprite();
     setupDesignerSprite();
 
-    // Start modal, then prime UI prompt
-    ui.showStartModal!((company, role, name) => {
-      setPlayerProfile(name, company, role);
-      ui.setPrompt(`Welcome ${name} · Approach CTO (top-right) or press E to talk`);
-    });
+    // Start modal once; skip when returning to Office
+    if (!getFlag('started')) {
+      ui.showStartModal!((company, role, name) => {
+        setPlayerProfile(name, company, role);
+        setFlag('started', true);
+        ui.setPrompt(`Welcome ${name} · Approach CTO (top-right) or press E to talk`);
+      });
+    } else {
+      const s = getState();
+      ui.setPrompt(`Welcome back, ${s.playerName} · Approach CTO/PM/Designer`);
+    }
 
     // Task list panel
     taskPanel = createTaskList(scene, { x: 16, y: 16, scale: 0.36 });
@@ -421,6 +429,11 @@ export function createOfficeScene(): Phaser.Scene {
         setVoiceChip(false);
       }
     }
+    // Victory restart handling
+    if (getFlag('victory') && interactKey.isDown && scene.time.now - victoryShownAt > 500) {
+      try { window.location.reload(); } catch {}
+    }
+
     // Apply sticky prompt override
     if (Date.now() < stickyPromptUntil && stickyPromptText) {
       ui.setPrompt(stickyPromptText);
@@ -466,6 +479,7 @@ function handleAddClue(args: any): void {
   addClue(id, points);
   refreshHud();
   try { sfx('check'); } catch {}
+  maybeShowVictory();
 }
 
 function handleAddPoints(args: any): void {
@@ -474,6 +488,7 @@ function handleAddPoints(args: any): void {
   addPoints(pts);
   refreshHud();
   try { sfx(pts > 0 ? 'ok' : 'blip'); } catch {}
+  maybeShowVictory();
 }
 
 function handleAdvanceTime(args: any): void {
@@ -505,6 +520,7 @@ function handleSubmitDemo(): void {
   ui.show([msg]);
   setTimeout(() => ui.hide(), 2600);
   try { sfx(rating === 'Excellent' ? 'ok' : 'pickup'); } catch {}
+  maybeShowVictory();
 }
 
 function buildCommonTools(role: 'CTO'|'PM'|'Designer'): RealtimeTool[] {
@@ -530,6 +546,20 @@ function buildPmInstructions(): string {
 function buildDesignerInstructions(): string {
   const s = getState();
   return `You are Jasmine (Designer). Share Figma handoff and design guidance. Encourage inline AI insight cards. Use function calls: add_clue (ids: figma_handoff, jump_back_last_progress_tip), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
+}
+
+function maybeShowVictory(): void {
+  const s = getState();
+  if (getFlag('victory')) return;
+  if (s.score >= 30) {
+    setFlag('victory', true);
+    const ui = createUI();
+    ui.show([`Victory! Score ${s.score} ≥ 30. Press E to restart.`]);
+    try { sfx('ok'); } catch {}
+    // Record shown time to debounce restart key
+    // Store on window for simplicity
+    (window as any).__victoryShownAt = Date.now();
+  }
 }
 
 
