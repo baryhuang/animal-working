@@ -26,6 +26,7 @@ html, body, #game {
   backdrop-filter: blur(6px);
   color: var(--text);
   z-index: 10;
+  display: none; /* Hide legacy title/hint panel */
 }
 
 .title {
