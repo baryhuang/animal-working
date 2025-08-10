@@ -5,7 +5,7 @@ import { createTaskList, TaskListHandle } from './panel';
 import { sfx } from './audio';
 import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
 import { fadeToScene } from './transition';
-import { getState, setPlayerProfile, addClue, advanceHour, getFlag, setFlag } from './state';
+import { getState, setPlayerProfile, addClue, advanceHour, getFlag, setFlag, addPoints, computeFinalRating } from './state';
 
 // Simple side-view player for the demo
 function createHeroTexture(scene: Phaser.Scene): string {
@@ -37,6 +37,7 @@ export function createOfficeScene(): Phaser.Scene {
   let minY = 0, maxY = 0;
   let taskPanel!: TaskListHandle;
   let voice!: VoiceSession | null;
+  let pmVoice: VoiceSession | null = null;
   // Prefer env var, then localStorage('oaiKey'), then window.OPENAI_API_KEY for dev
   let openAiKey: string | null =
     ((import.meta as any)?.env?.VITE_OPENAI_API_KEY as string | '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') ??
@@ -87,6 +88,7 @@ export function createOfficeScene(): Phaser.Scene {
   let isVoiceConnecting = false;
   let designerVoice: VoiceSession | null = null;
   let isDesignerConnecting = false;
+  let isPmConnecting = false;
 
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
@@ -255,6 +257,9 @@ export function createOfficeScene(): Phaser.Scene {
     // Task list panel
     taskPanel = createTaskList(scene, { x: 16, y: 16, scale: 0.36 });
     taskPanel.setTasks(['Talk to CTO', 'Talk to PM', 'Talk to Designer']);
+
+    // Initialize scoreboard/clues HUD
+    refreshHud();
   };
 
   ;(scene as any).update = (_time: number, delta: number) => {
@@ -319,16 +324,19 @@ export function createOfficeScene(): Phaser.Scene {
         isVoiceConnecting = true;
         if (openAiKey) {
           setStickyPrompt('Connecting voice…', 2500);
+          const tools: RealtimeTool[] = buildCommonTools('CTO');
           startOpenAiVoiceSession(
             openAiKey,
-            'You are the CTO. Be concise and kind. Guide the intern to ship a thin MVP slice today.',
+            buildCtoInstructions(),
             'gpt-4o-realtime-preview',
-            'onyx'
+            'onyx',
+            tools
           )
             .then(v => {
               voice = v;
               setStickyPrompt('Voice connected — speak to continue', 2500);
               setVoiceChip(true);
+              taskPanel.setDone(0, true);
               // dual greeting
               v.say('Good to see you. Start with scope, design, or metrics?');
               scene.time.delayedCall(500, () => voice?.say('If you can hear me, just start talking.'));
@@ -353,34 +361,38 @@ export function createOfficeScene(): Phaser.Scene {
         });
       }
     } else if (nearPm) {
-      prompt = 'Press E to talk to PM';
-      if (interactKey.isDown && !pmSpeakTimer) {
-        pm.startSpeaking();
-        sfx('talk');
-        ui.show(['PM: We’re redesigning Candidate Dashboard for faster decisions.', 'Your MVP should demonstrate value, mocks are fine.']);
-        pmSpeakTimer = scene.time.delayedCall(1400, () => {
-          ui.hide();
-          pm.stopSpeaking();
-          pmSpeakTimer = null;
-          taskPanel.setDone(1, true);
-          sfx('check');
-        });
+      prompt = 'Approach PM · voice starts automatically';
+      if (!pmVoice?.isActive?.() && !isPmConnecting) {
+        isPmConnecting = true;
+        const key = openAiKey!;
+        const tools: RealtimeTool[] = buildCommonTools('PM');
+        startOpenAiVoiceSession(
+          key,
+          buildPmInstructions(),
+          'gpt-4o-realtime-preview',
+          'alloy',
+          tools
+        )
+          .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
+          .catch(() => setStickyPrompt('PM voice failed', 2000))
+          .finally(() => { isPmConnecting = false; });
       }
     } else if (nearDesigner) {
       prompt = 'Approach Designer · voice starts automatically';
       if (!designerVoice?.isActive?.() && !isDesignerConnecting) {
         isDesignerConnecting = true;
         const tools: RealtimeTool[] = [
+          ...buildCommonTools('Designer'),
           {
             name: 'go_to_meeting',
             description: 'Call when we should go to the meeting room for deeper design discussion',
             parameters: { type: 'object', properties: { reason: { type: 'string' } } },
-            handler: () => fadeToScene(scene, 'DesignerMeeting', { duration: 420 })
+            handler: () => fadeToScene(scene, 'DesignerMeeting', { duration: 420, onBeforeStart: () => { advanceHour(1); refreshHud(); } })
           }
         ];
         const key = openAiKey!;
-        startOpenAiVoiceSession(key, 'You are a friendly female designer. Offer help, and call go_to_meeting when the user wants to go deeper.', 'gpt-4o-realtime-preview', 'verse', tools)
-          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); v.say('Hey! Want to walk through the design and questions?'); })
+        startOpenAiVoiceSession(key, buildDesignerInstructions(), 'gpt-4o-realtime-preview', 'verse', tools)
+          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); v.say('Hey! Want to walk through the design and questions?'); })
           .catch(() => setStickyPrompt('Designer voice failed', 2000))
           .finally(() => { isDesignerConnecting = false; });
       }
@@ -403,6 +415,11 @@ export function createOfficeScene(): Phaser.Scene {
         designerVoice = null;
         setVoiceChip(false);
       }
+      if (pmVoice?.isActive?.() && !(Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 140)) {
+        pmVoice.stop();
+        pmVoice = null;
+        setVoiceChip(false);
+      }
     }
     // Apply sticky prompt override
     if (Date.now() < stickyPromptUntil && stickyPromptText) {
@@ -414,6 +431,105 @@ export function createOfficeScene(): Phaser.Scene {
   };
 
   return scene;
+}
+
+// --- Helpers and realtime tool builders ---
+function refreshHud(): void {
+  const s = getState();
+  // Use createUI singleton to set clues; the UI instance is bound above as 'ui'
+  // We call via DOM each time using a lightweight re-fetch to avoid capturing 'ui' here.
+  const panel = document.getElementById('hud'); // not used; ensure UI exists
+  const uiHandle = (createUI && (createUI as any).lastInstance) ? (createUI as any).lastInstance : null;
+  // Fallback: call a new instance's setClues via the global dialog created by createUI
+  try {
+    // We can directly update via the UI we already created in scene lifecycle
+  } catch {}
+  // Update via minimal coupling: call setClues on the most recent UI instance if exposed
+  // Since we cannot access ui here, we instead duplicate the logic inline by calling createUI again and using its setClues.
+  const ui = createUI();
+  ui.setClues?.(Array.from(s.clues), s.score, s.hour);
+}
+
+const CLUE_POINTS: Record<string, number> = {
+  mvp_deadline: 10,
+  npc_locations: 10,
+  jd_top1_skill_badge: 10,
+  figma_handoff: 10,
+  jump_back_last_progress_tip: 10,
+  pm_ack_reprioritize: 10
+};
+
+function handleAddClue(args: any): void {
+  const id = String(args?.id ?? '').trim();
+  if (!id) return;
+  const points = Number(args?.points ?? CLUE_POINTS[id] ?? 0);
+  addClue(id, points);
+  refreshHud();
+  try { sfx('check'); } catch {}
+}
+
+function handleAddPoints(args: any): void {
+  const pts = Number(args?.points ?? 0);
+  if (!Number.isFinite(pts) || pts === 0) return;
+  addPoints(pts);
+  refreshHud();
+  try { sfx(pts > 0 ? 'ok' : 'blip'); } catch {}
+}
+
+function handleAdvanceTime(args: any): void {
+  const hours = Number(args?.hours ?? 1);
+  if (!Number.isFinite(hours) || hours === 0) return;
+  advanceHour(hours);
+  refreshHud();
+}
+
+function handleSetFlag(args: any): void {
+  const key = String(args?.key ?? '').trim();
+  const value = args?.value == null ? true : !!args.value;
+  if (!key) return;
+  setFlag(key, value);
+  refreshHud();
+}
+
+function handleSubmitDemo(): void {
+  // Advance time for return to CTO
+  advanceHour(1);
+  const s = getState();
+  if (s.hour < 17) addPoints(10); else if (s.hour > 17) addPoints(-20);
+  const { score, rating } = computeFinalRating();
+  refreshHud();
+  const ui = createUI();
+  const msg = rating === 'Excellent'
+    ? `Nice work, ${s.playerName}. You pulled in the right people, used AI tools smartly, and shipped value today. Final: ${score} (${rating}).`
+    : `Submission received. Final: ${score} (${rating}). Keep iterating with PM and Design for improvements.`;
+  ui.show([msg]);
+  setTimeout(() => ui.hide(), 2600);
+  try { sfx(rating === 'Excellent' ? 'ok' : 'pickup'); } catch {}
+}
+
+function buildCommonTools(role: 'CTO'|'PM'|'Designer'): RealtimeTool[] {
+  return [
+    { name: 'add_clue', description: 'Record a discovered clue and optional points', parameters: { type: 'object', properties: { id: { type: 'string' }, points: { type: 'number' } }, required: ['id'] }, handler: handleAddClue },
+    { name: 'add_points', description: 'Add or subtract points', parameters: { type: 'object', properties: { points: { type: 'number' }, reason: { type: 'string' } }, required: ['points'] }, handler: handleAddPoints },
+    { name: 'advance_time', description: 'Advance in-game time', parameters: { type: 'object', properties: { hours: { type: 'number' } } }, handler: handleAdvanceTime },
+    { name: 'set_flag', description: 'Set a boolean flag', parameters: { type: 'object', properties: { key: { type: 'string' }, value: { type: 'boolean' } }, required: ['key'] }, handler: handleSetFlag },
+    { name: 'submit_demo', description: 'Submit the MVP demo to CTO and compute final rating', parameters: { type: 'object', properties: {} }, handler: handleSubmitDemo }
+  ];
+}
+
+function buildCtoInstructions(): string {
+  const s = getState();
+  return `You are the CTO (Bary Huang). Be concise and kind. Greet ${s.playerName}. Mission: deliver a Candidate Dashboard MVP by 5 PM today. Use only function calls to record progress. Offer location hints when asked. Available functions: add_clue (ids: mvp_deadline, npc_locations), add_points, advance_time, set_flag, submit_demo.`;
+}
+
+function buildPmInstructions(): string {
+  const s = getState();
+  return `You are Sarah (PM). Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text: add_clue (ids: jd_top1_skill_badge, pm_ack_reprioritize), add_points, advance_time, set_flag, submit_demo if the intern returns to CTO.`;
+}
+
+function buildDesignerInstructions(): string {
+  const s = getState();
+  return `You are Jasmine (Designer). Share Figma handoff and design guidance. Encourage inline AI insight cards. Use function calls: add_clue (ids: figma_handoff, jump_back_last_progress_tip), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
 }
 
 

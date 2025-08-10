@@ -57,12 +57,11 @@ export function computeFinalRating(): { score: number; rating: 'Excellent'|'Pass
 }
 
 // --- Legacy shims for older scenes_side.ts ---
-type LegacyProgress = { mentorFound: boolean; tasksCompleted: number; quizScores: Record<string, number> };
-const legacy: LegacyProgress = { mentorFound: false, tasksCompleted: 0, quizScores: {} };
+type LegacyProgress = { mentorFound: boolean; tasksCompleted: number };
+const legacy: LegacyProgress = { mentorFound: false, tasksCompleted: 0 };
 
 export function getProgress(): LegacyProgress { return legacy; }
 export function markMentorFound(): void { legacy.mentorFound = true; setFlag('mentorFound', true); }
 export function addTaskCompleted(): void { legacy.tasksCompleted += 1; }
-export function setQuizScore(id: string, score: number): void { legacy.quizScores[id] = score; }
 
 

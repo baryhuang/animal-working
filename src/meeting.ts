@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createUI, DialogHandle } from './ui';
 import { fadeIn, fadeToScene } from './transition';
+import { getState, advanceHour } from './state';
 import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
 
 export function createDesignerMeetingScene(): Phaser.Scene {
@@ -48,7 +49,7 @@ export function createDesignerMeetingScene(): Phaser.Scene {
           name: 'go_back_to_office',
           description: 'Call when the user says they are clear/done to return to the office',
           parameters: { type: 'object', properties: { reason: { type: 'string' } } },
-          handler: () => fadeToScene(scene, 'Office', { duration: 420 })
+          handler: () => fadeToScene(scene, 'Office', { duration: 420, onBeforeStart: () => { advanceHour(1); const ui2 = createUI(); const s = getState(); ui2.setClues?.(Array.from(s.clues), s.score, s.hour); } })
         }
       ];
       startOpenAiVoiceSession(
