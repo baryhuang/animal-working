@@ -392,10 +392,10 @@ export function createOfficeScene(): Phaser.Scene {
           key,
           buildPmInstructions(),
           'gpt-4o-realtime-preview',
-          'verse',
+          'ballad',
           tools
         )
-          .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Maya, your Product Manager.`); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
+          .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Colin, your Product Manager.`); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
           .catch(() => setStickyPrompt('PM voice failed', 2000))
           .finally(() => { isPmConnecting = false; });
       }
@@ -622,7 +622,7 @@ function buildCtoInstructions(): string {
 
 function buildPmInstructions(): string {
   const s = getState();
-  return `You are Maya as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Maya, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
+  return `You are Colin as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Colin, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildDesignerInstructions(): string {
