@@ -1,0 +1,33 @@
+version: 1
+env:
+  runtime-versions:
+    nodejs: 20
+  variables:
+    VITE_BUILD_ENV: production
+    # Set secrets like VITE_OPENAI_API_KEY in Amplify console (App settings → Environment variables)
+
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 20 && nvm use 20
+        - npm ci --cache .npm --prefer-offline
+    build:
+      commands:
+        - echo "Building web only (skipping Electron in CI)"
+        - npm run build:web
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - .npm/**/*
+      - node_modules/**/*
+
+# (Optional) custom headers / redirects can be added here if needed:
+# customHeaders:
+#   - pattern: '**/*'
+#     headers:
+#       - key: 'Cache-Control'
+#         value: 'public, max-age=300'
