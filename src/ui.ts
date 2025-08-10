@@ -4,6 +4,9 @@ export type DialogHandle = {
   setPrompt: (text: string | null) => void;
   ask?: (question: string, choices: string[]) => Promise<number>;
   cancelAsk?: () => void;
+  showStartModal?: (onSubmit: (company: string, role: string, name: string) => void) => void;
+  toggleCluePanel?: () => void;
+  setClues?: (items: string[], score: number, hour: number) => void;
 };
 
 export function createUI(): DialogHandle {
@@ -79,7 +82,62 @@ export function createUI(): DialogHandle {
 
   const cancelAsk = () => { closeChooser?.(); };
 
-  return { show, hide, setPrompt, ask, cancelAsk };
+  // Start modal (simple)
+  const showStartModal = (onSubmit: (company: string, role: string, name: string) => void) => {
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:20;';
+    div.innerHTML = `
+      <div style="background:#12161f;padding:16px 18px;border-radius:12px;border:1px solid rgba(255,255,255,0.08);min-width:320px;color:#e6f1ff;font-family:Inter,sans-serif;">
+        <div style="font-weight:700;margin-bottom:8px;">Start Your Day</div>
+        <label>Company<input id="m_company" value="Peakmojo" style="width:100%;margin:4px 0 8px;padding:6px;border-radius:8px;border:1px solid #2a3340;background:#0b0f17;color:#dfeaff;"></label>
+        <label>Role<input id="m_role" value="Software Engineer Intern" style="width:100%;margin:4px 0 8px;padding:6px;border-radius:8px;border:1px solid #2a3340;background:#0b0f17;color:#dfeaff;"></label>
+        <label>Name<input id="m_name" value="Andy" style="width:100%;margin:4px 0 12px;padding:6px;border-radius:8px;border:1px solid #2a3340;background:#0b0f17;color:#dfeaff;"></label>
+        <button id="m_ok" style="padding:8px 10px;border-radius:8px;border:1px solid #3c9ee7;background:#1a2635;color:#aee2ff;cursor:pointer;">Start</button>
+      </div>`;
+    document.body.appendChild(div);
+    // prevent game hotkeys from firing while typing in modal
+    const stop = (e: Event) => { e.stopPropagation(); };
+    div.addEventListener('keydown', stop, true);
+    div.addEventListener('keypress', stop, true);
+    div.addEventListener('keyup', stop, true);
+    (div.querySelector('#m_ok') as HTMLButtonElement).onclick = () => {
+      const company = (div.querySelector('#m_company') as HTMLInputElement).value || 'Peak Mojo';
+      const role = (div.querySelector('#m_role') as HTMLInputElement).value || 'Engineer Intern';
+      const name = (div.querySelector('#m_name') as HTMLInputElement).value || 'Intern';
+      onSubmit(company, role, name);
+      div.remove();
+    };
+    // focus first input for immediate typing
+    (div.querySelector('#m_company') as HTMLInputElement).focus();
+  };
+
+  // Minimal clue panel
+  let clueDiv: HTMLElement | null = null;
+  const ensureClues = () => {
+    if (!clueDiv) {
+      clueDiv = document.createElement('div');
+      clueDiv.style.cssText = 'position:fixed;top:12px;right:16px;max-width:360px;background:rgba(12,14,20,0.75);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:10px 12px;color:#dfeaff;z-index:12;font-family:Inter,sans-serif;';
+      clueDiv.innerHTML = '<div id="clue_head" style="display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;"><div>Clues & Time</div><div id="clue_toggle">▲</div></div><div id="clue_body" style="margin-top:8px;font-size:12px;line-height:1.3"></div>';
+      document.body.appendChild(clueDiv);
+      clueDiv.querySelector('#clue_head')!.addEventListener('click', () => toggleCluePanel());
+    }
+  };
+  let collapsed = false;
+  const toggleCluePanel = () => {
+    ensureClues();
+    collapsed = !collapsed;
+    (clueDiv!.querySelector('#clue_body') as HTMLElement).style.display = collapsed ? 'none' : 'block';
+    (clueDiv!.querySelector('#clue_toggle') as HTMLElement).textContent = collapsed ? '▼' : '▲';
+  };
+  const setClues = (items: string[], score: number, hour: number) => {
+    ensureClues();
+    const body = clueDiv!.querySelector('#clue_body') as HTMLElement;
+    const timeStr = `${hour}:00`;
+    body.innerHTML = [`<div style="opacity:0.8;margin-bottom:6px;">Time: ${timeStr} · Score: ${score}</div>`,
+      ...items.map(i => `<div>• ${i}</div>`) ].join('');
+  };
+
+  return { show, hide, setPrompt, ask, cancelAsk, showStartModal, toggleCluePanel, setClues };
 }
 
 

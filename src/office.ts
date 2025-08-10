@@ -5,6 +5,7 @@ import { createTaskList, TaskListHandle } from './panel';
 import { sfx } from './audio';
 import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
 import { fadeToScene } from './transition';
+import { getState, setPlayerProfile, addClue, advanceHour, getFlag, setFlag } from './state';
 
 // Simple side-view player for the demo
 function createHeroTexture(scene: Phaser.Scene): string {
@@ -67,7 +68,7 @@ export function createOfficeScene(): Phaser.Scene {
       document.body.appendChild(voiceChip);
     }
   };
-  const setVoiceChip = (active: boolean, label = '语音中') => {
+  const setVoiceChip = (active: boolean, label = 'Voice') => {
     ensureVoiceChip();
     if (!voiceChip) return;
     if (voiceChipLabelEl) voiceChipLabelEl.textContent = label;
@@ -113,12 +114,12 @@ export function createOfficeScene(): Phaser.Scene {
     }
 
     // Frame index mapping (2x2):
-    // 0: 工作(笔记本) | 1: 讲话+举手
-    // 2: 扶眼镜        | 3: 静态微笑(Idle)
+    // 0: laptop | 1: talk+gesture
+    // 2: adjust glasses | 3: idle smile
 
     // Create a persistent sprite
     const ctoX = Math.floor(bgWidth * 0.69);
-    // 稍微上移
+    // slightly higher
     const ctoY = Math.floor(bgHeight * 0.68);
     cto = createSimpleNpc(scene, {
       x: ctoX,
@@ -170,8 +171,8 @@ export function createOfficeScene(): Phaser.Scene {
       x: dx,
       y: dy,
       sheetKey: 'designer',
-      idleFrame: 3, // 右下（第4张）
-      speakFrame: 1, // 右上（第2张）
+      idleFrame: 3, // bottom-right
+      speakFrame: 1, // top-right
       blinkFrame: 2,
       speakMode: 'hold',
       perspective: { worldHeight: bgHeight, min: 0.16, max: 0.46 },
@@ -223,7 +224,7 @@ export function createOfficeScene(): Phaser.Scene {
     scene.add.image(0, 0, 'office_bg').setOrigin(0, 0).setDepth(-1000);
     // BGM disabled temporarily
 
-    // Player spawn调整到更靠下并靠右，便于直接走向 CTO
+    // Player spawn lower-right, close to CTO path
     const groundY = Math.floor(bgHeight * 0.86);
     const spawnX = Math.floor(bgWidth * 0.58);
     setupPlayerSprite(spawnX, groundY);
@@ -245,18 +246,21 @@ export function createOfficeScene(): Phaser.Scene {
     setupPMSprite();
     setupDesignerSprite();
 
-    // Hint
-    ui.setPrompt('靠近 CTO（右上区域） · 按 E 交互');
+    // Start modal, then prime UI prompt
+    ui.showStartModal!((company, role, name) => {
+      setPlayerProfile(name, company, role);
+      ui.setPrompt(`Welcome ${name} · Approach CTO (top-right) or press E to talk`);
+    });
 
     // Task list panel
     taskPanel = createTaskList(scene, { x: 16, y: 16, scale: 0.36 });
-    taskPanel.setTasks(['与 CTO 打招呼', '与 PM 沟通需求', '与 设计师 对齐 UI']);
+    taskPanel.setTasks(['Talk to CTO', 'Talk to PM', 'Talk to Designer']);
   };
 
   ;(scene as any).update = (_time: number, delta: number) => {
     if (!player || !cto) return;
 
-    // 4 方向移动（仅方向键）
+    // 4-direction move (arrow keys only)
     const left = cursors.left?.isDown;
     const right = cursors.right?.isDown;
     const up = cursors.up?.isDown;
@@ -269,12 +273,12 @@ export function createOfficeScene(): Phaser.Scene {
     if (right) vx += speed;
     if (up) vy -= speed;
     if (down) vy += speed;
-    // 归一化对角速度
+    // normalize diagonal
     if (vx !== 0 && vy !== 0) { const inv = 1 / Math.sqrt(2); vx *= inv; vy *= inv; }
-    // 允许在背景区域内自由移动
+    // clamp to background region
     player.x = Phaser.Math.Clamp(player.x + vx * dt, minX, maxX);
     player.y = Phaser.Math.Clamp(player.y + vy * dt, minY, maxY);
-    // 行走动画：水平用帧 0/1，垂直用帧 2/3
+    // Walk anim: horizontal frames 0/1; vertical frames 2/3
     const moving = Math.abs(vx) + Math.abs(vy) > 1;
     if (moving) {
       const useHorizontal = Math.abs(vx) >= Math.abs(vy);
@@ -290,13 +294,13 @@ export function createOfficeScene(): Phaser.Scene {
       player.setFrame(0);
     }
 
-    // 伪透视缩放：越靠下越大
+    // Fake perspective: lower = larger
     const t = Phaser.Math.Clamp((player.y - minY) / (maxY - minY), 0, 1);
-    const scale = 0.48 + 0.16 * t; // 更平坦：0.48 (远) → 0.64 (近)
+    const scale = 0.48 + 0.16 * t; // flatter: 0.48 (far) → 0.64 (near)
     player.setScale(scale);
     player.setDepth(player.y);
 
-    // Idle微抖动/呼吸：玩家在静止时轻微上下浮动（更小幅度）
+    // Idle micro breathing when not moving
     if (!moving) {
       player.y += Math.sin(scene.time.now * 0.006) * 0.18;
     }
@@ -306,40 +310,41 @@ export function createOfficeScene(): Phaser.Scene {
     const nearCto = Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 120;
     const nearPm = pm ? Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 120 : false;
     const nearDesigner = designer ? Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 120 : false;
+    // openAiKey can be provided via env/localStorage; don't overwrite here
     openAiKey = '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';
     if (nearCto) {
-      prompt = '靠近 CTO · 正在准备语音…（按 E 查看文字）';
+      prompt = 'Approach CTO · voice will start (press E for text)';
       // Auto-start voice once when near CTO
       if (!voice?.isActive?.() && !isVoiceConnecting) {
         isVoiceConnecting = true;
         if (openAiKey) {
-          setStickyPrompt('连接语音中…', 2500);
+          setStickyPrompt('Connecting voice…', 2500);
           startOpenAiVoiceSession(
             openAiKey,
-            '你是 CTO，用简洁亲和的口吻和玩家语音交流。遇到设计/产品问题可以给建议。',
+            'You are the CTO. Be concise and kind. Guide the intern to ship a thin MVP slice today.',
             'gpt-4o-realtime-preview',
             'onyx'
           )
             .then(v => {
               voice = v;
-              setStickyPrompt('语音已连接，对着麦克风说话', 2500);
+              setStickyPrompt('Voice connected — speak to continue', 2500);
               setVoiceChip(true);
-              // 主动问候（双触发：立即 + 500ms 兜底）
-              v.say('你好，欢迎过来。我这边准备好了，你想先聊技术规划、产品节奏，还是设计规范？');
-              scene.time.delayedCall(500, () => voice?.say('如果你能听到我，请直接说出你想聊的主题。'));
+              // dual greeting
+              v.say('Good to see you. Start with scope, design, or metrics?');
+              scene.time.delayedCall(500, () => voice?.say('If you can hear me, just start talking.'));
             })
-            .catch(() => setStickyPrompt('语音连接失败', 2500))
+            .catch(() => setStickyPrompt('Voice connection failed', 2500))
             .finally(() => { isVoiceConnecting = false; });
         } else {
-          setStickyPrompt('缺少 OpenAI Key：在控制台粘贴 localStorage.setItem("oaiKey","sk-...") 后刷新', 3500);
+          setStickyPrompt('Missing OpenAI Key. Set localStorage oaiKey then reload.', 3500);
           isVoiceConnecting = false;
         }
       }
-      // E 键显示文字欢迎语（非必需）
+      // Optional text welcome via E
       if (interactKey.isDown && !speakTimer) {
         startSpeaking();
         sfx('talk');
-        ui.show(['CTO: 欢迎加入！', '有问题随时来找我。']);
+        ui.show(['CTO: Welcome!', 'Ping me if I have my headset on—give me a minute.']);
         scene.time.delayedCall(1400, () => {
           ui.hide();
           stopSpeaking();
@@ -348,11 +353,11 @@ export function createOfficeScene(): Phaser.Scene {
         });
       }
     } else if (nearPm) {
-      prompt = '按 E 与 PM 交谈';
+      prompt = 'Press E to talk to PM';
       if (interactKey.isDown && !pmSpeakTimer) {
         pm.startSpeaking();
         sfx('talk');
-        ui.show(['PM: 你好，我是产品经理。', '先去和 CTO 打个招呼吧～']);
+        ui.show(['PM: We’re redesigning Candidate Dashboard for faster decisions.', 'Your MVP should demonstrate value, mocks are fine.']);
         pmSpeakTimer = scene.time.delayedCall(1400, () => {
           ui.hide();
           pm.stopSpeaking();
@@ -362,21 +367,21 @@ export function createOfficeScene(): Phaser.Scene {
         });
       }
     } else if (nearDesigner) {
-      prompt = '靠近 设计师 · 将自动开始语音';
+      prompt = 'Approach Designer · voice starts automatically';
       if (!designerVoice?.isActive?.() && !isDesignerConnecting) {
         isDesignerConnecting = true;
         const tools: RealtimeTool[] = [
           {
             name: 'go_to_meeting',
-            description: '当需要进入会议室时调用此工具',
+            description: 'Call when we should go to the meeting room for deeper design discussion',
             parameters: { type: 'object', properties: { reason: { type: 'string' } } },
             handler: () => fadeToScene(scene, 'DesignerMeeting', { duration: 420 })
           }
         ];
         const key = openAiKey!;
-        startOpenAiVoiceSession(key, '你是一名女性设计师，语气温柔专业，需要时调用 go_to_meeting 进入会议室。', 'gpt-4o-realtime-preview', 'verse', tools)
-          .then(v => { designerVoice = v; setVoiceChip(true, '与 设计师 语音中'); v.say('嗨，我在这边。要不要一起看看设计问题？'); })
-          .catch(() => setStickyPrompt('设计师语音连接失败', 2000))
+        startOpenAiVoiceSession(key, 'You are a friendly female designer. Offer help, and call go_to_meeting when the user wants to go deeper.', 'gpt-4o-realtime-preview', 'verse', tools)
+          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); v.say('Hey! Want to walk through the design and questions?'); })
+          .catch(() => setStickyPrompt('Designer voice failed', 2000))
           .finally(() => { isDesignerConnecting = false; });
       }
     } else {

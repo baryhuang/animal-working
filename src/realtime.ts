@@ -90,7 +90,7 @@ export async function startOpenAiVoiceSession(
       dc.send(JSON.stringify(sessionUpdate));
       dc.send(JSON.stringify({
         type: 'response.create',
-        response: { modalities: ['audio'], instructions: '你好，我是 CTO，很高兴见到你。现在我们已经连上麦克风了，你可以直接说话。' }
+        response: { modalities: ['audio'], instructions: 'We are connected. You can start talking.' }
       }));
       // Flush queued says
       while (sayQueue.length) {

@@ -40,24 +40,24 @@ export function createDesignerMeetingScene(): Phaser.Scene {
 
     openAiKey = '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';
 
-    // Auto start designer voice in meeting; add a tool to go back to office when user says完成/清楚了
+    // Auto start designer voice in meeting; add a tool to go back to office when user says it's clear/done
     if (!isConnecting && !voice && openAiKey) {
       isConnecting = true;
       const tools: RealtimeTool[] = [
         {
           name: 'go_back_to_office',
-          description: '当用户表示“明白了/清楚了/可以结束”时调用，返回办公室场景',
+          description: 'Call when the user says they are clear/done to return to the office',
           parameters: { type: 'object', properties: { reason: { type: 'string' } } },
           handler: () => fadeToScene(scene, 'Office', { duration: 420 })
         }
       ];
       startOpenAiVoiceSession(
         openAiKey,
-        '你是一名女性设计师。现在我们在会议室里，帮助用户梳理设计问题并给出建议。如果用户表示已经清楚/明白/可以回去，请调用 go_back_to_office 工具。',
+        'You are a female designer. We are in the meeting room—help the user clarify design and call go_back_to_office when they say they are clear.',
         'gpt-4o-realtime-preview',
         'verse',
         tools
-      ).then(v => { voice = v; voice.say('我们开始吧。我会先确认信息层级、对比与留白，你也可以随时打断我。'); })
+      ).then(v => { voice = v; voice.say('Let’s begin. We’ll check information hierarchy, contrast, and spacing. Interrupt me anytime.'); })
        .catch(() => {/* ignore */})
        .finally(() => { isConnecting = false; });
     }
