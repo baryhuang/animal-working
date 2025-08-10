@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { createUI, DialogHandle } from './ui';
 import { createSimpleNpc, SimpleNpc } from './actors';
 import { createTaskList, TaskListHandle } from './panel';
+import { sfx, startBGMFromUrl } from './audio';
 
 // Simple side-view player for the demo
 function createHeroTexture(scene: Phaser.Scene): string {
@@ -174,6 +175,9 @@ export function createOfficeScene(): Phaser.Scene {
     scene.cameras.main.setBackgroundColor('#0e1014');
 
     scene.add.image(0, 0, 'office_bg').setOrigin(0, 0).setDepth(-1000);
+    // Start BGM from asset file
+    const bgmUrl = new URL('./assets/bgm.mp3', import.meta.url).toString();
+    startBGMFromUrl(bgmUrl, 0.12);
 
     // Player spawn调整到更靠下并靠右，便于直接走向 CTO
     const groundY = Math.floor(bgHeight * 0.86);
@@ -262,35 +266,41 @@ export function createOfficeScene(): Phaser.Scene {
       prompt = '按 E 与 CTO 交谈';
       if (interactKey.isDown && !speakTimer) {
         startSpeaking();
+        sfx('talk');
         ui.show(['CTO: 欢迎加入！', '有问题随时来找我。']);
         scene.time.delayedCall(1400, () => {
           ui.hide();
           stopSpeaking();
           taskPanel.setDone(0, true);
+          sfx('check');
         });
       }
     } else if (nearPm) {
       prompt = '按 E 与 PM 交谈';
       if (interactKey.isDown && !pmSpeakTimer) {
         pm.startSpeaking();
+        sfx('talk');
         ui.show(['PM: 你好，我是产品经理。', '先去和 CTO 打个招呼吧～']);
         pmSpeakTimer = scene.time.delayedCall(1400, () => {
           ui.hide();
           pm.stopSpeaking();
           pmSpeakTimer = null;
           taskPanel.setDone(1, true);
+          sfx('check');
         });
       }
     } else if (nearDesigner) {
       prompt = '按 E 与 设计师 交谈';
       if (interactKey.isDown && !designerSpeakTimer) {
         designer.startSpeaking();
+        sfx('talk');
         ui.show(['设计师: 我在做新的 UI 设计稿', '等你把需求整理好再来一起迭代。']);
         designerSpeakTimer = scene.time.delayedCall(1400, () => {
           ui.hide();
           designer.stopSpeaking();
           designerSpeakTimer = null;
           taskPanel.setDone(2, true);
+          sfx('check');
         });
       }
     }
