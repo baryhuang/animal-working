@@ -56,7 +56,7 @@ export function createDesignerMeetingScene(): Phaser.Scene {
         openAiKey,
         'You are Jasmine as Designer. On your first message, begin with: "I am Jasmine, your Designer." We are in the meeting room—help the user clarify design and call go_back_to_office when they say they are clear.',
         'gpt-4o-realtime-preview',
-        'verse',
+        'coral',
         tools
       ).then(v => { voice = v; const s = getState(); voice.say(`Hi ${s.playerName}, I'm Jasmine, your Designer.`); voice.say("Let's begin. We'll check information hierarchy, contrast, and spacing. Interrupt me anytime."); })
        .catch(() => {/* ignore */})

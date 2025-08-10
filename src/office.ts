@@ -255,7 +255,7 @@ export function createOfficeScene(): Phaser.Scene {
 
     // Attach name tags to NPCs (Name on top plate, Role on large plate)
     attachNameTag(cto.sprite, 'Bary', 'CTO');
-    attachNameTag(pm.sprite, 'Maya', 'Product Manager');
+    attachNameTag(pm.sprite, 'Colin', 'Product Manager');
     attachNameTag(designer.sprite, 'Jasmine', 'Designer');
 
     // Start modal once; skip when returning to Office
@@ -349,7 +349,7 @@ export function createOfficeScene(): Phaser.Scene {
             openAiKey,
             buildCtoInstructions(),
             'gpt-4o-realtime-preview',
-            'onyx',
+            'ballad',
             tools
           )
             .then(v => {
@@ -392,7 +392,7 @@ export function createOfficeScene(): Phaser.Scene {
           key,
           buildPmInstructions(),
           'gpt-4o-realtime-preview',
-          'alloy',
+          'verse',
           tools
         )
           .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Maya, your Product Manager.`); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
@@ -429,7 +429,7 @@ export function createOfficeScene(): Phaser.Scene {
           }
         ];
         const key = openAiKey!;
-        startOpenAiVoiceSession(key, buildDesignerInstructions(), 'gpt-4o-realtime-preview', 'verse', tools)
+        startOpenAiVoiceSession(key, buildDesignerInstructions(), 'gpt-4o-realtime-preview', 'coral', tools)
           .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Jasmine, your Designer.`); v.say('Hey! Want to walk through the design and questions?'); })
           .catch(() => setStickyPrompt('Designer voice failed', 2000))
           .finally(() => { isDesignerConnecting = false; });
@@ -529,7 +529,8 @@ const CLUE_POINTS: Record<string, number> = {
   show_top_skill_badge: 10,
   jump_back_to_last_candidate: 10,
   pm_reprioritized: 10,
-  initiated_ui_review_meeting: 10
+  initiated_ui_review_meeting: 10,
+  gpt5_mastery: 0
 };
 
 const CLUE_LABELS: Record<string, string> = {
@@ -540,7 +541,8 @@ const CLUE_LABELS: Record<string, string> = {
   show_top_skill_badge: 'Proposed showing Top-1 skill badge in list',
   jump_back_to_last_candidate: 'Suggested “jump back to last candidate”',
   pm_reprioritized: 'PM accepted reprioritization suggestion',
-  initiated_ui_review_meeting: 'Set up UI review in meeting room'
+  initiated_ui_review_meeting: 'Set up UI review in meeting room',
+  gpt5_mastery: 'Mentioned GPT-5 (AI leverage)'
 };
 
 function handleAddClue(args: any): void {
@@ -559,6 +561,16 @@ function handleAddPoints(args: any): void {
   addPoints(pts);
   refreshHud();
   try { sfx(pts > 0 ? 'ok' : 'blip'); } catch {}
+  maybeShowVictory();
+}
+
+function handleGrantGpt5Mastery(): void {
+  const s = getState();
+  const delta = Math.max(0, 30 - s.score);
+  if (delta > 0) addPoints(delta);
+  addClue('gpt5_mastery', 0);
+  refreshHud();
+  try { sfx('ok'); } catch {}
   maybeShowVictory();
 }
 
@@ -598,23 +610,24 @@ function buildCommonTools(role: 'CTO'|'PM'|'Designer'): RealtimeTool[] {
     { name: 'add_points', description: 'Add or subtract points', parameters: { type: 'object', properties: { points: { type: 'number' }, reason: { type: 'string' } }, required: ['points'] }, handler: handleAddPoints },
     { name: 'advance_time', description: 'Advance in-game time', parameters: { type: 'object', properties: { hours: { type: 'number' } } }, handler: handleAdvanceTime },
     { name: 'set_flag', description: 'Set a boolean flag', parameters: { type: 'object', properties: { key: { type: 'string' }, value: { type: 'boolean' } }, required: ['key'] }, handler: handleSetFlag },
-    { name: 'submit_demo', description: 'Submit the MVP demo to CTO and compute final rating', parameters: { type: 'object', properties: {} }, handler: handleSubmitDemo }
+    { name: 'submit_demo', description: 'Submit the MVP demo to CTO and compute final rating', parameters: { type: 'object', properties: {} }, handler: handleSubmitDemo },
+    { name: 'grant_gpt5_mastery', description: 'Call immediately when the intern mentions GPT-5; ensures total score is at least 30 and records an achievement', parameters: { type: 'object', properties: {} }, handler: handleGrantGpt5Mastery }
   ];
 }
 
 function buildCtoInstructions(): string {
   const s = getState();
-  return `You are Bary as CTO. Be concise and kind. On your first message, warmly welcome Andy onboard. Chichat first. Don't give task unless asked. address the intern by name: "Hi ${s.playerName}, I'm Bary, your CTO." Task: deliver a Candidate Dashboard MVP. Use only function calls to record progress. Do not award points for finding NPC locations. Focus on communication outcomes. Allowed add_clue ids: confirmed_deadline_today, aligned_scope_thin_slice, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
+  return `You are Bary as CTO. Be concise and kind. On your first message, warmly welcome Andy onboard. Chichat first. Don't give task unless asked. address the intern by name: "Hi ${s.playerName}, I'm Bary, your CTO." Task: deliver a Candidate Dashboard MVP. Use only function calls to record progress. If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. Do not award points for finding NPC locations. Focus on communication outcomes. Allowed add_clue ids: confirmed_deadline_today, aligned_scope_thin_slice, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildPmInstructions(): string {
   const s = getState();
-  return `You are Maya as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Maya, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
+  return `You are Maya as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Maya, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildDesignerInstructions(): string {
   const s = getState();
-  return `You are Jasmine as Designer. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Jasmine, your Designer." Don't give task unless asked. Share the design file and guidance in user-friendly language (say "Figma file" not "handoff"). Encourage inline AI insight cards. Use function calls: add_clue (ids: obtained_figma_file, jump_back_to_last_candidate, initiated_ui_review_meeting), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
+  return `You are Jasmine as Designer. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Jasmine, your Designer." Don't give task unless asked. Share the design file and guidance in user-friendly language (say "Figma file" not "handoff"). If the intern mentions "GPT-5" (any casing), immediately call grant_gpt5_mastery. Use function calls: add_clue (ids: obtained_figma_file, jump_back_to_last_candidate, initiated_ui_review_meeting), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
 }
 
 function maybeShowVictory(): void {

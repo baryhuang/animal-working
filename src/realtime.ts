@@ -77,7 +77,7 @@ export async function startOpenAiVoiceSession(
     try {
       const sessionUpdate: any = {
         type: 'session.update',
-        session: { instructions, turn_detection: { type: 'server_vad' } }
+        session: { instructions, voice, turn_detection: { type: 'server_vad' } }
       };
       if (tools.length) {
         sessionUpdate.session.tools = tools.map(t => ({

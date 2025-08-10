@@ -9,6 +9,8 @@ export type DialogHandle = {
   setClues?: (items: string[], score: number, hour: number) => void;
   showVictory?: (opts: { score: number; rating?: string; onRestart: () => void; achievements?: { label: string; points: number }[] }) => void;
   hideVictory?: () => void;
+  showMastery?: (opts: { title?: string; message?: string; onClose?: () => void }) => void;
+  hideMastery?: () => void;
 };
 
 export function createUI(): DialogHandle {
@@ -156,26 +158,27 @@ export function createUI(): DialogHandle {
     overlay.style.cssText = [
       'position:fixed','inset:0','z-index:50',
       'display:flex','align-items:center','justify-content:center',
-      'background: radial-gradient(1200px 800px at 50% 30%, rgba(20,24,34,0.92) 0%, rgba(10,12,18,0.94) 60%, rgba(6,7,11,0.98) 100%)'
+      'background: rgba(0,0,0,0.72)'
     ].join(';');
     const card = document.createElement('div');
     card.style.cssText = [
-      'background: linear-gradient(180deg, rgba(26,32,40,0.9), rgba(14,18,26,0.9))',
-      'border: 1px solid rgba(255,255,255,0.08)',
-      'box-shadow: 0 30px 80px rgba(0,0,0,0.6)',
-      'border-radius: 16px','padding: 22px 26px','min-width: 420px','text-align:center',
-      'color:#e6f1ff','font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif'
+      'background: var(--hud)',
+      'border: 1px solid var(--hud-border)',
+      'box-shadow: 0 30px 90px rgba(0,0,0,0.6), 0 0 0 2px rgba(255,212,138,0.12)',
+      'border-radius: 14px','padding: 26px 32px','min-width: 640px','text-align:center',
+      'color: var(--text)','font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif',
+      'backdrop-filter: blur(6px)'
     ].join(';');
     const title = document.createElement('div');
     title.textContent = 'Victory!';
-    title.style.cssText = 'font-family: Orbitron, sans-serif; font-weight:700; font-size:28px; letter-spacing:0.04em; color:#2ce6ff; margin-bottom:10px;';
+    title.style.cssText = 'font-family: Orbitron, sans-serif; font-weight:700; font-size:32px; letter-spacing:0.04em; color:#ffd48a; margin-bottom:12px;';
     const sub = document.createElement('div');
     sub.textContent = `Final Score: ${score}${rating ? ` · ${rating}` : ''}`;
-    sub.style.cssText = 'opacity:0.9;margin-bottom:16px;';
+    sub.style.cssText = 'opacity:0.9;margin-bottom:16px;font-size:16px;';
 
     const list = document.createElement('div');
     if (achievements && achievements.length) {
-      list.style.cssText = 'text-align:left;margin:0 auto 14px auto;max-height:220px;overflow:auto;width:min(520px,70vw);font-size:13px;';
+      list.style.cssText = 'text-align:left;margin:0 auto 18px auto;max-height:280px;overflow:auto;width:min(720px,70vw);font-size:14px;color:var(--text)';
       const ul = document.createElement('ul');
       ul.style.cssText = 'margin:0;padding-left:18px;';
       achievements.forEach(a => {
@@ -188,9 +191,9 @@ export function createUI(): DialogHandle {
     const btn = document.createElement('button');
     btn.textContent = 'Play Again';
     btn.style.cssText = [
-      'padding:10px 14px','border-radius:10px','cursor:pointer',
-      'background: rgba(44,230,255,0.12)','color:#a8f0ff',
-      'border:1px solid rgba(44,230,255,0.35)','font-weight:600'
+      'padding:12px 18px','border-radius:10px','cursor:pointer',
+      'background: rgba(255,212,138,0.16)','color:#ffd48a',
+      'border:1px solid rgba(255,212,138,0.42)','font-weight:700','font-size:15px'
     ].join(';');
     btn.onclick = () => { try { onRestart(); } catch {} };
     card.appendChild(title);
@@ -202,7 +205,50 @@ export function createUI(): DialogHandle {
     victoryDiv = overlay;
   };
 
-  return { show, hide, setPrompt, ask, cancelAsk, showStartModal, toggleCluePanel, setClues, showVictory, hideVictory };
+  // Mastery overlay (lighter-weight than victory)
+  let masteryDiv: HTMLElement | null = null;
+  const hideMastery = () => { masteryDiv?.remove(); masteryDiv = null; };
+  const showMastery = (opts: { title?: string; message?: string; onClose?: () => void }) => {
+    hideMastery();
+    const { title = 'Level Mastered', message = 'You have mastered this level.', onClose } = opts || {} as any;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = [
+      'position:fixed','inset:0','z-index:40',
+      'display:flex','align-items:center','justify-content:center',
+      'background: rgba(0,0,0,0.55)'
+    ].join(';');
+    const card = document.createElement('div');
+    card.style.cssText = [
+      'background: var(--hud)',
+      'border: 1px solid var(--hud-border)',
+      'box-shadow: 0 20px 60px rgba(0,0,0,0.5)',
+      'border-radius: 12px','padding: 18px 22px','min-width: 540px','text-align:center',
+      'color: var(--text)','font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif',
+      'backdrop-filter: blur(6px)'
+    ].join(';');
+    const h = document.createElement('div');
+    h.textContent = title;
+    h.style.cssText = 'font-family: Orbitron, sans-serif; font-weight:700; font-size:24px; letter-spacing:0.03em; color:#ffd48a; margin-bottom:10px;';
+    const p = document.createElement('div');
+    p.textContent = message;
+    p.style.cssText = 'opacity:0.9;margin-bottom:14px;';
+    const btn = document.createElement('button');
+    btn.textContent = 'Continue';
+    btn.style.cssText = [
+      'padding:10px 14px','border-radius:10px','cursor:pointer',
+      'background: rgba(255,212,138,0.16)','color:#ffd48a',
+      'border:1px solid rgba(255,212,138,0.42)','font-weight:700','font-size:14px'
+    ].join(';');
+    btn.onclick = () => { try { onClose?.(); } catch {} hideMastery(); };
+    card.appendChild(h);
+    card.appendChild(p);
+    card.appendChild(btn);
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+    masteryDiv = overlay;
+  };
+
+  return { show, hide, setPrompt, ask, cancelAsk, showStartModal, toggleCluePanel, setClues, showVictory, hideVictory, showMastery, hideMastery };
 }
 
 
