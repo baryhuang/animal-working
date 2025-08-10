@@ -7,7 +7,21 @@ export type VoiceSession = {
   say: (text: string) => void;
 };
 
-export async function startOpenAiVoiceSession(apiKey: string, instructions = 'You are a friendly CTO. Talk concisely.', model = 'gpt-4o-realtime-preview', voice = 'onyx'): Promise<VoiceSession> {
+export type RealtimeTool = {
+  name: string;
+  description: string;
+  // JSON schema-like parameters object
+  parameters: any;
+  handler: (args: any) => void;
+};
+
+export async function startOpenAiVoiceSession(
+  apiKey: string,
+  instructions = 'You are a friendly CTO. Talk concisely.',
+  model = 'gpt-4o-realtime-preview',
+  voice = 'onyx',
+  tools: RealtimeTool[] = []
+): Promise<VoiceSession> {
   const pc = new RTCPeerConnection();
   let closed = false;
 
@@ -61,10 +75,19 @@ export async function startOpenAiVoiceSession(apiKey: string, instructions = 'Yo
     dcReady = true;
     // Kick off an initial response loop so the assistant speaks when hearing the user
     try {
-      dc.send(JSON.stringify({
+      const sessionUpdate: any = {
         type: 'session.update',
         session: { instructions, turn_detection: { type: 'server_vad' } }
-      }));
+      };
+      if (tools.length) {
+        sessionUpdate.session.tools = tools.map(t => ({
+          type: 'function',
+          name: t.name,
+          description: t.description,
+          parameters: t.parameters ?? { type: 'object', properties: {} }
+        }));
+      }
+      dc.send(JSON.stringify(sessionUpdate));
       dc.send(JSON.stringify({
         type: 'response.create',
         response: { modalities: ['audio'], instructions: '你好，我是 CTO，很高兴见到你。现在我们已经连上麦克风了，你可以直接说话。' }
@@ -73,6 +96,24 @@ export async function startOpenAiVoiceSession(apiKey: string, instructions = 'Yo
       while (sayQueue.length) {
         const txt = sayQueue.shift()!;
         dc.send(JSON.stringify({ type: 'response.create', response: { modalities: ['audio'], instructions: txt } }));
+      }
+    } catch {}
+  };
+
+  // Tool call handler
+  const toolMap: Record<string, RealtimeTool> = Object.fromEntries(tools.map(t => [t.name, t]));
+  dc.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      // Realtime function/tool call variants
+      const name = data?.name || data?.tool?.name || data?.response?.tool?.name || data?.function_call?.name;
+      const args = data?.arguments || data?.tool?.arguments || data?.response?.tool?.arguments || data?.function_call?.arguments;
+      if (name && toolMap[name]) {
+        let parsed: any = args;
+        if (typeof parsed === 'string') {
+          try { parsed = JSON.parse(parsed); } catch {}
+        }
+        toolMap[name].handler(parsed);
       }
     } catch {}
   };

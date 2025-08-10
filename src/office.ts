@@ -3,7 +3,7 @@ import { createUI, DialogHandle } from './ui';
 import { createSimpleNpc, SimpleNpc } from './actors';
 import { createTaskList, TaskListHandle } from './panel';
 import { sfx } from './audio';
-import { startOpenAiVoiceSession, VoiceSession } from './realtime';
+import { startOpenAiVoiceSession, VoiceSession, RealtimeTool } from './realtime';
 import { fadeToScene } from './transition';
 
 // Simple side-view player for the demo
@@ -53,17 +53,24 @@ export function createOfficeScene(): Phaser.Scene {
 
   // Voice status chip element
   let voiceChip: HTMLElement | null = null;
+  let voiceChipLabelEl: HTMLElement | null = null;
   const ensureVoiceChip = () => {
     if (!voiceChip) {
       voiceChip = document.createElement('div');
       voiceChip.className = 'voicechip';
-      voiceChip.innerHTML = '<span class="dot"></span><span class="label">与 CTO 语音中</span>';
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      voiceChipLabelEl = document.createElement('span');
+      voiceChipLabelEl.className = 'label';
+      voiceChip.appendChild(dot);
+      voiceChip.appendChild(voiceChipLabelEl);
       document.body.appendChild(voiceChip);
     }
   };
-  const setVoiceChip = (active: boolean) => {
+  const setVoiceChip = (active: boolean, label = '语音中') => {
     ensureVoiceChip();
     if (!voiceChip) return;
+    if (voiceChipLabelEl) voiceChipLabelEl.textContent = label;
     if (active) voiceChip.classList.add('active'); else voiceChip.classList.remove('active');
   };
 
@@ -77,6 +84,8 @@ export function createOfficeScene(): Phaser.Scene {
   let designerChoiceOpen = false;
   let designerCooldownAt = 0;
   let isVoiceConnecting = false;
+  let designerVoice: VoiceSession | null = null;
+  let isDesignerConnecting = false;
 
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
@@ -297,12 +306,12 @@ export function createOfficeScene(): Phaser.Scene {
     const nearCto = Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 120;
     const nearPm = pm ? Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 120 : false;
     const nearDesigner = designer ? Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 120 : false;
+    openAiKey = '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';
     if (nearCto) {
       prompt = '靠近 CTO · 正在准备语音…（按 E 查看文字）';
       // Auto-start voice once when near CTO
       if (!voice?.isActive?.() && !isVoiceConnecting) {
         isVoiceConnecting = true;
-        openAiKey = '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';
         if (openAiKey) {
           setStickyPrompt('连接语音中…', 2500);
           startOpenAiVoiceSession(
@@ -353,24 +362,22 @@ export function createOfficeScene(): Phaser.Scene {
         });
       }
     } else if (nearDesigner) {
-      // Auto-open choice dialog when near designer
-      prompt = null;
-      if (!designerChoiceOpen && scene.time.now - designerCooldownAt > 800) {
-        designerChoiceOpen = true;
-        designer.startSpeaking();
-        sfx('talk');
-        ui.ask?.('需要我帮你看看设计吗？', ['没事了', '我想问你一下设计问题']).then(idx => {
-          designer.stopSpeaking();
-          if (idx === 1) {
-            // Smooth transition to meeting scene
-            fadeToScene(scene, 'DesignerMeeting', { duration: 420 });
-            return;
-          } else {
-            ui.hide();
+      prompt = '靠近 设计师 · 将自动开始语音';
+      if (!designerVoice?.isActive?.() && !isDesignerConnecting) {
+        isDesignerConnecting = true;
+        const tools: RealtimeTool[] = [
+          {
+            name: 'go_to_meeting',
+            description: '当需要进入会议室时调用此工具',
+            parameters: { type: 'object', properties: { reason: { type: 'string' } } },
+            handler: () => fadeToScene(scene, 'DesignerMeeting', { duration: 420 })
           }
-          designerCooldownAt = scene.time.now;
-          designerChoiceOpen = false;
-        });
+        ];
+        const key = openAiKey!;
+        startOpenAiVoiceSession(key, '你是一名女性设计师，语气温柔专业，需要时调用 go_to_meeting 进入会议室。', 'gpt-4o-realtime-preview', 'verse', tools)
+          .then(v => { designerVoice = v; setVoiceChip(true, '与 设计师 语音中'); v.say('嗨，我在这边。要不要一起看看设计问题？'); })
+          .catch(() => setStickyPrompt('设计师语音连接失败', 2000))
+          .finally(() => { isDesignerConnecting = false; });
       }
     } else {
       // Left the designer zone: close chooser if open
@@ -384,6 +391,11 @@ export function createOfficeScene(): Phaser.Scene {
       if (voice?.isActive?.() && !(Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 140)) {
         voice.stop();
         voice = null;
+        setVoiceChip(false);
+      }
+      if (designerVoice?.isActive?.() && !(Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 140)) {
+        designerVoice.stop();
+        designerVoice = null;
         setVoiceChip(false);
       }
     }
