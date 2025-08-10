@@ -395,7 +395,23 @@ export function createOfficeScene(): Phaser.Scene {
             name: 'go_to_meeting',
             description: 'Call when we should go to the meeting room for deeper design discussion',
             parameters: { type: 'object', properties: { reason: { type: 'string' } } },
-            handler: () => fadeToScene(scene, 'DesignerMeeting', { duration: 420, onBeforeStart: () => { advanceHour(1); refreshHud(); } })
+            handler: () => fadeToScene(scene, 'DesignerMeeting', {
+              duration: 420,
+              onBeforeStart: () => {
+                // Award for initiating a UI review meeting
+                handleAddClue({ id: 'initiated_ui_review_meeting' });
+                // Stop any active office voice sessions before entering meeting
+                try { designerVoice?.stop(); } catch {}
+                try { pmVoice?.stop(); } catch {}
+                try { voice?.stop(); } catch {}
+                designerVoice = null;
+                pmVoice = null;
+                voice = null;
+                setVoiceChip(false);
+                advanceHour(1);
+                refreshHud();
+              }
+            })
           }
         ];
         const key = openAiKey!;
@@ -460,16 +476,30 @@ function refreshHud(): void {
   // Update via minimal coupling: call setClues on the most recent UI instance if exposed
   // Since we cannot access ui here, we instead duplicate the logic inline by calling createUI again and using its setClues.
   const ui = createUI();
-  ui.setClues?.(Array.from(s.clues), s.score, s.hour);
+  const items = Array.from(s.clues).map(id => CLUE_LABELS[id] ?? id);
+  ui.setClues?.(items, s.score, s.hour);
 }
 
 const CLUE_POINTS: Record<string, number> = {
-  mvp_deadline: 10,
-  npc_locations: 10,
-  jd_top1_skill_badge: 10,
-  figma_handoff: 10,
-  jump_back_last_progress_tip: 10,
-  pm_ack_reprioritize: 10
+  confirmed_deadline_today: 10,
+  aligned_scope_thin_slice: 10,
+  defined_success_criteria: 10,
+  obtained_figma_file: 10,
+  show_top_skill_badge: 10,
+  jump_back_to_last_candidate: 10,
+  pm_reprioritized: 10,
+  initiated_ui_review_meeting: 10
+};
+
+const CLUE_LABELS: Record<string, string> = {
+  confirmed_deadline_today: 'Confirmed MVP deadline (today 5 PM)',
+  aligned_scope_thin_slice: 'Aligned on thin-slice MVP scope',
+  defined_success_criteria: 'Defined success criteria',
+  obtained_figma_file: 'Obtained Figma file',
+  show_top_skill_badge: 'Proposed showing Top-1 skill badge in list',
+  jump_back_to_last_candidate: 'Suggested “jump back to last candidate”',
+  pm_reprioritized: 'PM accepted reprioritization suggestion',
+  initiated_ui_review_meeting: 'Set up UI review in meeting room'
 };
 
 function handleAddClue(args: any): void {
@@ -535,17 +565,17 @@ function buildCommonTools(role: 'CTO'|'PM'|'Designer'): RealtimeTool[] {
 
 function buildCtoInstructions(): string {
   const s = getState();
-  return `You are the CTO (Bary Huang). Be concise and kind. Greet ${s.playerName}. Mission: deliver a Candidate Dashboard MVP by 5 PM today. Use only function calls to record progress. Offer location hints when asked. Available functions: add_clue (ids: mvp_deadline, npc_locations), add_points, advance_time, set_flag, submit_demo.`;
+  return `You are the CTO (Bary Huang). Be concise and kind. Greet ${s.playerName}. Mission: deliver a Candidate Dashboard MVP by 5 PM today. Use only function calls to record progress. Do not award points for finding NPC locations. Focus on communication outcomes. Allowed add_clue ids: confirmed_deadline_today, aligned_scope_thin_slice, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildPmInstructions(): string {
   const s = getState();
-  return `You are Sarah (PM). Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text: add_clue (ids: jd_top1_skill_badge, pm_ack_reprioritize), add_points, advance_time, set_flag, submit_demo if the intern returns to CTO.`;
+  return `You are Sarah (PM). Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildDesignerInstructions(): string {
   const s = getState();
-  return `You are Jasmine (Designer). Share Figma handoff and design guidance. Encourage inline AI insight cards. Use function calls: add_clue (ids: figma_handoff, jump_back_last_progress_tip), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
+  return `You are Jasmine (Designer). Share the design file and guidance in user-friendly language (say “Figma file” not “handoff”). Encourage inline AI insight cards. Use function calls: add_clue (ids: obtained_figma_file, jump_back_to_last_candidate, initiated_ui_review_meeting), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
 }
 
 function maybeShowVictory(): void {
