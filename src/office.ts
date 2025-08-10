@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { createUI, DialogHandle } from './ui';
 import { createSimpleNpc, SimpleNpc } from './actors';
 import { createTaskList, TaskListHandle } from './panel';
-import { sfx, startBGMFromUrl } from './audio';
+import { sfx } from './audio';
+import { fadeToScene } from './transition';
 
 // Simple side-view player for the demo
 function createHeroTexture(scene: Phaser.Scene): string {
@@ -178,9 +179,7 @@ export function createOfficeScene(): Phaser.Scene {
     scene.cameras.main.setBackgroundColor('#0e1014');
 
     scene.add.image(0, 0, 'office_bg').setOrigin(0, 0).setDepth(-1000);
-    // Start BGM from asset file
-    const bgmUrl = new URL('./assets/bgm.mp3', import.meta.url).toString();
-    startBGMFromUrl(bgmUrl, 0.12);
+    // BGM disabled temporarily
 
     // Player spawn调整到更靠下并靠右，便于直接走向 CTO
     const groundY = Math.floor(bgHeight * 0.86);
@@ -302,10 +301,9 @@ export function createOfficeScene(): Phaser.Scene {
         ui.ask?.('需要我帮你看看设计吗？', ['没事了', '我想问你一下设计问题']).then(idx => {
           designer.stopSpeaking();
           if (idx === 1) {
-            ui.show(['设计师: 好的，说说你的想法。', '我们可以从信息层级和对比开始。']);
-            scene.time.delayedCall(1400, () => ui.hide());
-            taskPanel.setDone(2, true);
-            sfx('check');
+            // Smooth transition to meeting scene
+            fadeToScene(scene, 'DesignerMeeting', { duration: 420 });
+            return;
           } else {
             ui.hide();
           }

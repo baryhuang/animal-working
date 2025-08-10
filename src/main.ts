@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { createLobbyScene, createMeetingScene, createEngineeringScene, createLoungeScene, createLabScene } from './scenes_side';
 import { createOfficeScene } from './office';
+import { createDesignerMeetingScene } from './meeting';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -24,6 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
   },
   scene: [
     createOfficeScene(),
+    createDesignerMeetingScene(),
     createLobbyScene(),
     createMeetingScene(),
     createEngineeringScene(),
