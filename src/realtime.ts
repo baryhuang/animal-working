@@ -1,0 +1,87 @@
+// Minimal OpenAI Realtime WebRTC helper for Electron/Web
+// NOTE: For development only. Reads API key from caller; do not ship with hardcoded secrets.
+
+export type VoiceSession = {
+  stop: () => void;
+  isActive: () => boolean;
+};
+
+export async function startOpenAiVoiceSession(apiKey: string, instructions = 'You are a friendly CTO. Talk concisely.', model = 'gpt-4o-realtime-preview-2024-12-17', voice = 'alloy'): Promise<VoiceSession> {
+  const pc = new RTCPeerConnection();
+  let closed = false;
+
+  console.log('startOpenAiVoiceSession', apiKey, instructions, model, voice);
+
+  // Remote audio sink
+  const audioEl = document.createElement('audio');
+  audioEl.autoplay = true;
+  (audioEl as any).playsInline = true;
+  audioEl.style.display = 'none';
+  document.body.appendChild(audioEl);
+
+  pc.ontrack = (event) => {
+    const [stream] = event.streams;
+    audioEl.srcObject = stream;
+    audioEl.play().then(() => console.log('[realtime] remote audio playing')).catch((e) => console.warn('[realtime] play failed', e));
+  };
+
+  // Mic capture
+  const media = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(err => {
+    console.error('[realtime] mic error', err);
+    throw err;
+  });
+  media.getTracks().forEach(t => pc.addTrack(t, media));
+  // Ensure we also negotiate a recvonly audio track for assistant speech
+  pc.addTransceiver('audio', { direction: 'recvonly' });
+
+  // Data channel for events
+  const dc = pc.createDataChannel('oai-events');
+
+  // Create SDP offer
+  const offer = await pc.createOffer({ offerToReceiveAudio: true });
+  await pc.setLocalDescription(offer);
+
+  const base = `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}&voice=${encodeURIComponent(voice)}`;
+  const resp = await fetch(base, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/sdp',
+      'OpenAI-Beta': 'realtime=v1'
+    },
+    body: offer.sdp || ''
+  });
+  const answerSdp = await resp.text();
+  await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+  dc.onopen = () => {
+    // Kick off an initial response loop so the assistant speaks when hearing the user
+    try {
+      dc.send(JSON.stringify({
+        type: 'session.update',
+        session: { instructions }
+      }));
+      dc.send(JSON.stringify({
+        type: 'response.create',
+        response: { modalities: ['audio'], instructions: '你好，我是 CTO，很高兴见到你。现在我们已经连上麦克风了，你可以直接说话。' }
+      }));
+    } catch {}
+  };
+
+  const stop = () => {
+    if (closed) return;
+    closed = true;
+    try { dc.close(); } catch {}
+    try { pc.close(); } catch {}
+    media.getTracks().forEach(t => t.stop());
+    if (audioEl.srcObject) {
+      const s = audioEl.srcObject as MediaStream;
+      s.getTracks().forEach(t => t.stop());
+    }
+    audioEl.remove();
+  };
+
+  return { stop, isActive: () => !closed };
+}
+
+

@@ -3,6 +3,7 @@ import { createUI, DialogHandle } from './ui';
 import { createSimpleNpc, SimpleNpc } from './actors';
 import { createTaskList, TaskListHandle } from './panel';
 import { sfx } from './audio';
+import { startOpenAiVoiceSession, VoiceSession } from './realtime';
 import { fadeToScene } from './transition';
 
 // Simple side-view player for the demo
@@ -34,6 +35,37 @@ export function createOfficeScene(): Phaser.Scene {
   let minX = 60, maxX = 1540;
   let minY = 0, maxY = 0;
   let taskPanel!: TaskListHandle;
+  let voice!: VoiceSession | null;
+  // Prefer env var, then localStorage('oaiKey'), then window.OPENAI_API_KEY for dev
+  let openAiKey: string | null =
+    ((import.meta as any)?.env?.VITE_OPENAI_API_KEY as string | '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') ??
+    (localStorage.getItem('oaiKey') as string | null) ??
+    ((window as any).OPENAI_API_KEY as string | null) ??
+    null;
+
+  // Sticky prompt helper
+  let stickyPromptText: string | null = null;
+  let stickyPromptUntil = 0;
+  const setStickyPrompt = (text: string, ms = 1800) => {
+    stickyPromptText = text;
+    stickyPromptUntil = Date.now() + ms;
+  };
+
+  // Voice status chip element
+  let voiceChip: HTMLElement | null = null;
+  const ensureVoiceChip = () => {
+    if (!voiceChip) {
+      voiceChip = document.createElement('div');
+      voiceChip.className = 'voicechip';
+      voiceChip.innerHTML = '<span class="dot"></span><span class="label">与 CTO 语音中</span>';
+      document.body.appendChild(voiceChip);
+    }
+  };
+  const setVoiceChip = (active: boolean) => {
+    ensureVoiceChip();
+    if (!voiceChip) return;
+    if (active) voiceChip.classList.add('active'); else voiceChip.classList.remove('active');
+  };
 
   // CTO sprite and timers
   let cto!: SimpleNpc;
@@ -265,8 +297,23 @@ export function createOfficeScene(): Phaser.Scene {
     const nearPm = pm ? Math.hypot(player.x - pm.sprite.x, player.y - pm.sprite.y) < 120 : false;
     const nearDesigner = designer ? Math.hypot(player.x - designer.sprite.x, player.y - designer.sprite.y) < 120 : false;
     if (nearCto) {
-      prompt = '按 E 与 CTO 交谈';
-      if (interactKey.isDown && !speakTimer) {
+      prompt = '按 E 与 CTO 交谈（将连接语音）';
+      // Voice trigger on E; allow retrigger every 1s
+      const now = scene.time.now;
+      if (interactKey.isDown && (scene as any)._lastVoiceTryAt == null) (scene as any)._lastVoiceTryAt = 0;
+      if (interactKey.isDown && now - (scene as any)._lastVoiceTryAt > 1000) {
+        (scene as any)._lastVoiceTryAt = now;
+        if (!voice?.isActive?.()) {
+          openAiKey = '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';
+          if (openAiKey) {
+            setStickyPrompt('连接语音中…', 2500);
+            startOpenAiVoiceSession(openAiKey, '你是 CTO，用简洁亲和的口吻和玩家语音交流。遇到设计/产品问题可以给建议。')
+              .then(v => { voice = v; setStickyPrompt('语音已连接，对着麦克风说话', 2500); setVoiceChip(true); })
+              .catch((e) => setStickyPrompt('语音连接失败', 2500));
+          } else {
+            setStickyPrompt('缺少 OpenAI Key：在控制台粘贴 localStorage.setItem("oaiKey","sk-...") 后刷新', 3500);
+          }
+        }
         startSpeaking();
         sfx('talk');
         ui.show(['CTO: 欢迎加入！', '有问题随时来找我。']);
@@ -319,8 +366,20 @@ export function createOfficeScene(): Phaser.Scene {
         designerChoiceOpen = false;
         designerCooldownAt = scene.time.now;
       }
+      // If moved away from CTO, stop voice session
+      if (voice?.isActive?.() && !(Math.hypot(player.x - cto.sprite.x, player.y - cto.sprite.y) < 140)) {
+        voice.stop();
+        voice = null;
+        setVoiceChip(false);
+      }
     }
-    ui.setPrompt(prompt);
+    // Apply sticky prompt override
+    if (Date.now() < stickyPromptUntil && stickyPromptText) {
+      ui.setPrompt(stickyPromptText);
+    } else {
+      stickyPromptText = null;
+      ui.setPrompt(prompt);
+    }
   };
 
   return scene;

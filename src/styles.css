@@ -110,4 +110,33 @@ canvas {
 }
 .chooser .opt:hover { background: rgba(44,230,255,0.16); }
 
+/* Voice status chip */
+.voicechip {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  background: rgba(26, 32, 40, 0.85);
+  border: 1px solid var(--hud-border);
+  color: #d7ffe3;
+  border-radius: 999px;
+  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  display: none;
+  z-index: 12;
+}
+.voicechip.active { display: inline-flex; align-items: center; gap: 6px; }
+.voicechip .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #2cff88; box-shadow: 0 0 10px rgba(44,255,136,0.6);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
 
