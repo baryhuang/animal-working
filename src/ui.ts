@@ -7,7 +7,7 @@ export type DialogHandle = {
   showStartModal?: (onSubmit: (company: string, role: string, name: string) => void) => void;
   toggleCluePanel?: () => void;
   setClues?: (items: string[], score: number, hour: number) => void;
-  showVictory?: (opts: { score: number; rating?: string; onRestart: () => void }) => void;
+  showVictory?: (opts: { score: number; rating?: string; onRestart: () => void; achievements?: { label: string; points: number }[] }) => void;
   hideVictory?: () => void;
 };
 
@@ -142,9 +142,9 @@ export function createUI(): DialogHandle {
   // Victory overlay
   let victoryDiv: HTMLElement | null = null;
   const hideVictory = () => { victoryDiv?.remove(); victoryDiv = null; };
-  const showVictory = (opts: { score: number; rating?: string; onRestart: () => void }) => {
+  const showVictory = (opts: { score: number; rating?: string; onRestart: () => void; achievements?: { label: string; points: number }[] }) => {
     hideVictory();
-    const { score, rating, onRestart } = opts;
+    const { score, rating, onRestart, achievements } = opts;
     const overlay = document.createElement('div');
     overlay.style.cssText = [
       'position:fixed','inset:0','z-index:50',
@@ -165,6 +165,19 @@ export function createUI(): DialogHandle {
     const sub = document.createElement('div');
     sub.textContent = `Final Score: ${score}${rating ? ` · ${rating}` : ''}`;
     sub.style.cssText = 'opacity:0.9;margin-bottom:16px;';
+
+    const list = document.createElement('div');
+    if (achievements && achievements.length) {
+      list.style.cssText = 'text-align:left;margin:0 auto 14px auto;max-height:220px;overflow:auto;width:min(520px,70vw);font-size:13px;';
+      const ul = document.createElement('ul');
+      ul.style.cssText = 'margin:0;padding-left:18px;';
+      achievements.forEach(a => {
+        const li = document.createElement('li');
+        li.textContent = `${a.label} (+${a.points})`;
+        ul.appendChild(li);
+      });
+      list.appendChild(ul);
+    }
     const btn = document.createElement('button');
     btn.textContent = 'Play Again';
     btn.style.cssText = [
@@ -175,6 +188,7 @@ export function createUI(): DialogHandle {
     btn.onclick = () => { try { onRestart(); } catch {} };
     card.appendChild(title);
     card.appendChild(sub);
+    if (list.children.length) card.appendChild(list);
     card.appendChild(btn);
     overlay.appendChild(card);
     document.body.appendChild(overlay);

@@ -183,9 +183,9 @@ export function createSideScene(cfg: SideSceneConfig): Phaser.Scene {
       if (dist < nearThreshold) {
         const lockedInfo = d.isLocked?.();
         if (lockedInfo?.locked) {
-          prompt = `门已锁 · ${lockedInfo.reason ?? ''}`.trim();
+          prompt = `Locked · ${lockedInfo.reason ?? ''}`.trim();
         } else {
-          prompt = `按 E 进入 · ${d.label}`;
+          prompt = `Press E to enter · ${d.label}`;
           if (interactKey.isDown && scene.time.now - lastInteractAt > 300) {
             lastInteractAt = scene.time.now;
             scene.scene.start(d.target);
@@ -198,7 +198,7 @@ export function createSideScene(cfg: SideSceneConfig): Phaser.Scene {
     (cfg.npcs ?? []).forEach(n => {
       const dist = Math.abs(player.x - n.x);
       if (dist < nearThreshold) {
-        prompt = '按 E 交互';
+        prompt = 'Press E to interact';
         if (interactKey.isDown && scene.time.now - lastInteractAt > 300) {
           lastInteractAt = scene.time.now;
           if (n.onInteract) {

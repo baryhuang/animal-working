@@ -7,7 +7,7 @@ export function createHubScene(): Phaser.Scene {
     banner: 'Company Plaza',
     spawn: { x: 1100, y: 1500 },
     exits: [
-      { x: 1100, y: 1560, label: '公司大门（按 E 进入）', target: 'Gate' },
+      { x: 1100, y: 1560, label: 'Company Gate (Press E to enter)', target: 'Gate' },
       { x: 200, y: 200, label: 'Leadership', target: 'Leadership' },
       { x: 2000, y: 200, label: 'Culture', target: 'Culture' },
       { x: 200, y: 1400, label: 'Product', target: 'Product' },
@@ -64,7 +64,7 @@ export function createProductScene(): Phaser.Scene {
     name: 'Product',
     banner: 'Product Lab',
     npcs: [
-      { x: 1000, y: 820, text: ['设备: 需要修复！按 E 启动小游戏（占位）。'] },
+      { x: 1000, y: 820, text: ['Device: Needs repair! Press E to start mini task (placeholder).'] },
     ],
     exits: [{ x: 60, y: 800, label: '← 返回 Hub', target: 'Hub' }]
   });

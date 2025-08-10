@@ -245,7 +245,7 @@ export function createGameScene(config: SceneConfig = {}): Phaser.Scene {
       const sensor = scene.add.zone(exit.x, exit.y, 90, 90);
       scene.physics.add.existing(sensor, true);
       scene.physics.add.overlap(player, sensor, () => {
-        ui.setPrompt(`按 E 进入 · ${exit.label}`);
+        ui.setPrompt(`Press E to enter · ${exit.label}`);
         if (enterKey.isDown) {
           sfx('ok');
           scene.scene.start(exit.target);
@@ -259,7 +259,7 @@ export function createGameScene(config: SceneConfig = {}): Phaser.Scene {
       const zone = scene.add.zone(n.x, n.y, 80, 80);
       scene.physics.add.existing(zone, true);
       scene.physics.add.overlap(player, zone, () => {
-        ui.setPrompt('按 E 对话');
+        ui.setPrompt('Press E to talk');
         if (enterKey.isDown) {
           sfx('blip');
           ui.show(n.text);

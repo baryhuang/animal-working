@@ -253,7 +253,7 @@ export function createOfficeScene(): Phaser.Scene {
 
     // Attach name tags to NPCs (Name on top plate, Role on large plate)
     attachNameTag(cto.sprite, 'Bary', 'CTO');
-    attachNameTag(pm.sprite, 'Sarah', 'Product Manager');
+    attachNameTag(pm.sprite, 'Maya', 'Product Manager');
     attachNameTag(designer.sprite, 'Jasmine', 'Designer');
 
     // Start modal once; skip when returning to Office
@@ -356,6 +356,8 @@ export function createOfficeScene(): Phaser.Scene {
               setVoiceChip(true);
               taskPanel.setDone(0, true);
               // dual greeting
+              const _s = getState();
+              v.say(`Hi ${_s.playerName}, I'm Bary, your CTO.`);
               v.say('Good to see you. Start with scope, design, or metrics?');
               scene.time.delayedCall(500, () => voice?.say('If you can hear me, just start talking.'));
             })
@@ -391,7 +393,7 @@ export function createOfficeScene(): Phaser.Scene {
           'alloy',
           tools
         )
-          .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
+          .then(v => { pmVoice = v; setVoiceChip(true, 'Talking with PM'); taskPanel.setDone(1, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Maya, your Product Manager.`); v.say('Hi! Let’s align on the Candidate Dashboard MVP goals.'); })
           .catch(() => setStickyPrompt('PM voice failed', 2000))
           .finally(() => { isPmConnecting = false; });
       }
@@ -426,7 +428,7 @@ export function createOfficeScene(): Phaser.Scene {
         ];
         const key = openAiKey!;
         startOpenAiVoiceSession(key, buildDesignerInstructions(), 'gpt-4o-realtime-preview', 'verse', tools)
-          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); v.say('Hey! Want to walk through the design and questions?'); })
+          .then(v => { designerVoice = v; setVoiceChip(true, 'Talking with Designer'); taskPanel.setDone(2, true); const _s = getState(); v.say(`Hi ${_s.playerName}, I'm Jasmine, your Designer.`); v.say('Hey! Want to walk through the design and questions?'); })
           .catch(() => setStickyPrompt('Designer voice failed', 2000))
           .finally(() => { isDesignerConnecting = false; });
       }
@@ -581,11 +583,9 @@ function handleSubmitDemo(): void {
   const { score, rating } = computeFinalRating();
   refreshHud();
   const ui = createUI();
-  const msg = rating === 'Excellent'
-    ? `Nice work, ${s.playerName}. You pulled in the right people, used AI tools smartly, and shipped value today. Final: ${score} (${rating}).`
-    : `Submission received. Final: ${score} (${rating}). Keep iterating with PM and Design for improvements.`;
+  const msg = `Submission received. Final: ${score} (${rating}). Keep iterating with PM and Design for improvements.`;
   ui.show([msg]);
-  setTimeout(() => ui.hide(), 2600);
+  setTimeout(() => ui.hide(), 2000);
   try { sfx(rating === 'Excellent' ? 'ok' : 'pickup'); } catch {}
   maybeShowVictory();
 }
@@ -602,17 +602,17 @@ function buildCommonTools(role: 'CTO'|'PM'|'Designer'): RealtimeTool[] {
 
 function buildCtoInstructions(): string {
   const s = getState();
-  return `You are the CTO (Bary Huang). Be concise and kind. Greet ${s.playerName}. Mission: deliver a Candidate Dashboard MVP by 5 PM today. Use only function calls to record progress. Do not award points for finding NPC locations. Focus on communication outcomes. Allowed add_clue ids: confirmed_deadline_today, aligned_scope_thin_slice, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
+  return `You are Bary as CTO. Be concise and kind. On your first message, warmly welcome Andy onboard. Chichat first. Don't give task unless asked. address the intern by name: "Hi ${s.playerName}, I'm Bary, your CTO." Task: deliver a Candidate Dashboard MVP. Use only function calls to record progress. Do not award points for finding NPC locations. Focus on communication outcomes. Allowed add_clue ids: confirmed_deadline_today, aligned_scope_thin_slice, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildPmInstructions(): string {
   const s = getState();
-  return `You are Sarah (PM). Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
+  return `You are Maya as Product Manager. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Maya, your Product Manager." Don't give task unless asked. Goal: redesign Candidate Dashboard to help hiring decide faster. MVP can be mocked but must prove value. Prefer function calls over text. Allowed add_clue ids: show_top_skill_badge, pm_reprioritized, defined_success_criteria. You may also use add_points, advance_time, set_flag, submit_demo.`;
 }
 
 function buildDesignerInstructions(): string {
   const s = getState();
-  return `You are Jasmine (Designer). Share the design file and guidance in user-friendly language (say “Figma file” not “handoff”). Encourage inline AI insight cards. Use function calls: add_clue (ids: obtained_figma_file, jump_back_to_last_candidate, initiated_ui_review_meeting), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
+  return `You are Jasmine as Designer. On your first message, address the intern by name: "Hi ${s.playerName}, I'm Jasmine, your Designer." Don't give task unless asked. Share the design file and guidance in user-friendly language (say "Figma file" not "handoff"). Encourage inline AI insight cards. Use function calls: add_clue (ids: obtained_figma_file, jump_back_to_last_candidate, initiated_ui_review_meeting), add_points, advance_time, set_flag, and call go_to_meeting for deep-dive.`;
 }
 
 function maybeShowVictory(): void {
@@ -621,9 +621,11 @@ function maybeShowVictory(): void {
   if (s.score >= 30) {
     setFlag('victory', true);
     const ui = createUI();
+    const achievements = Array.from(s.clues).map(id => ({ label: CLUE_LABELS[id] ?? id, points: CLUE_POINTS[id] ?? 0 }));
     ui.showVictory?.({
       score: s.score,
-      rating: computeFinalRating().rating,
+      rating: 'Win',
+      achievements,
       onRestart: () => { try { window.location.reload(); } catch {} }
     });
     try { sfx('ok'); } catch {}
