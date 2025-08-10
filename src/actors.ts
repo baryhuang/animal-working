@@ -10,6 +10,7 @@ export type SimpleNpcConfig = {
   depthByY?: boolean; // default true
   bob?: { amplitude?: number; durationMs?: number };
   perspective?: { worldHeight: number; min?: number; max?: number };
+  speakMode?: 'toggle' | 'hold'; // default 'toggle'
 };
 
 export type SimpleNpc = {
@@ -69,14 +70,16 @@ export function createSimpleNpc(scene: Phaser.Scene, cfg: SimpleNpcConfig): Simp
     if (speakTimer) return;
     speakingOn = true;
     sprite.setFrame(cfg.speakFrame);
-    speakTimer = scene.time.addEvent({
-      delay: Phaser.Math.Between(300, 500),
-      loop: true,
-      callback: () => {
-        speakingOn = !speakingOn;
-        sprite.setFrame(speakingOn ? cfg.speakFrame : cfg.idleFrame);
-      }
-    });
+    if ((cfg.speakMode ?? 'toggle') === 'toggle') {
+      speakTimer = scene.time.addEvent({
+        delay: Phaser.Math.Between(300, 500),
+        loop: true,
+        callback: () => {
+          speakingOn = !speakingOn;
+          sprite.setFrame(speakingOn ? cfg.speakFrame : cfg.idleFrame);
+        }
+      });
+    }
   };
   const stopSpeaking = () => {
     if (speakTimer) {

@@ -3,6 +3,7 @@ export type DialogHandle = {
   hide: () => void;
   setPrompt: (text: string | null) => void;
   ask?: (question: string, choices: string[]) => Promise<number>;
+  cancelAsk?: () => void;
 };
 
 export function createUI(): DialogHandle {
@@ -46,6 +47,8 @@ export function createUI(): DialogHandle {
     prompt!.classList.remove('hidden');
   };
 
+  let closeChooser: (() => void) | null = null;
+
   const ask = (question: string, choices: string[]): Promise<number> => {
     return new Promise(resolve => {
       chooser!.innerHTML = [
@@ -62,13 +65,21 @@ export function createUI(): DialogHandle {
         const idx = Number(idxAttr);
         chooser!.classList.add('hidden');
         chooser!.removeEventListener('click', onClick);
+        closeChooser = null;
         resolve(idx);
       };
       chooser!.addEventListener('click', onClick);
+      closeChooser = () => {
+        chooser!.classList.add('hidden');
+        chooser!.removeEventListener('click', onClick);
+        closeChooser = null;
+      };
     });
   };
 
-  return { show, hide, setPrompt, ask };
+  const cancelAsk = () => { closeChooser?.(); };
+
+  return { show, hide, setPrompt, ask, cancelAsk };
 }
 
 

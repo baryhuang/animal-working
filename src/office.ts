@@ -41,6 +41,8 @@ export function createOfficeScene(): Phaser.Scene {
   let speakTimer: Phaser.Time.TimerEvent | null = null;
   let pmSpeakTimer: Phaser.Time.TimerEvent | null = null;
   let designerSpeakTimer: Phaser.Time.TimerEvent | null = null;
+  let designerChoiceOpen = false;
+  let designerCooldownAt = 0;
 
   const officeUrl = new URL('./assets/office.png', import.meta.url).toString();
   const ctoUrl = new URL('./assets/cto.png', import.meta.url).toString();
@@ -125,9 +127,10 @@ export function createOfficeScene(): Phaser.Scene {
       x: dx,
       y: dy,
       sheetKey: 'designer',
-      idleFrame: 3,
-      speakFrame: 1,
+      idleFrame: 3, // 右下（第4张）
+      speakFrame: 1, // 右上（第2张）
       blinkFrame: 2,
+      speakMode: 'hold',
       perspective: { worldHeight: bgHeight, min: 0.16, max: 0.46 },
       bob: { amplitude: 1, durationMs: 1800 }
     });
@@ -290,18 +293,33 @@ export function createOfficeScene(): Phaser.Scene {
         });
       }
     } else if (nearDesigner) {
-      prompt = '按 E 与 设计师 交谈';
-      if (interactKey.isDown && !designerSpeakTimer) {
+      // Auto-open choice dialog when near designer
+      prompt = null;
+      if (!designerChoiceOpen && scene.time.now - designerCooldownAt > 800) {
+        designerChoiceOpen = true;
         designer.startSpeaking();
         sfx('talk');
-        ui.show(['设计师: 我在做新的 UI 设计稿', '等你把需求整理好再来一起迭代。']);
-        designerSpeakTimer = scene.time.delayedCall(1400, () => {
-          ui.hide();
+        ui.ask?.('需要我帮你看看设计吗？', ['没事了', '我想问你一下设计问题']).then(idx => {
           designer.stopSpeaking();
-          designerSpeakTimer = null;
-          taskPanel.setDone(2, true);
-          sfx('check');
+          if (idx === 1) {
+            ui.show(['设计师: 好的，说说你的想法。', '我们可以从信息层级和对比开始。']);
+            scene.time.delayedCall(1400, () => ui.hide());
+            taskPanel.setDone(2, true);
+            sfx('check');
+          } else {
+            ui.hide();
+          }
+          designerCooldownAt = scene.time.now;
+          designerChoiceOpen = false;
         });
+      }
+    } else {
+      // Left the designer zone: close chooser if open
+      if (designerChoiceOpen) {
+        ui.cancelAsk?.();
+        designer.stopSpeaking();
+        designerChoiceOpen = false;
+        designerCooldownAt = scene.time.now;
       }
     }
     ui.setPrompt(prompt);
